@@ -17,7 +17,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "allowBackup": false,
+      "package": "com.la501.sports"
     },
     "web": {
       "output": "static",
@@ -28,9 +30,20 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#000000",
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 288,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/images/splash-logo.png"
+          }
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
         }
       ]
     ],
