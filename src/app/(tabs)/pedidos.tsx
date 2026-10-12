@@ -164,7 +164,7 @@ export default function OrdersScreen() {
           {orders && orders.length === 0 && (
             <>
               <Text style={[styles.text, { color: colors.textSecondary }]}>Aún no tienes pedidos.</Text>
-              <BrandButton title="Ver el menú" onPress={() => router.navigate('/')} />
+              <BrandButton title="Hacer un pedido" onPress={() => router.navigate('/')} />
             </>
           )}
         </FormCard>

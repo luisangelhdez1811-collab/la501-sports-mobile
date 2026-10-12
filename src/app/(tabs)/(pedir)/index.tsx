@@ -5,7 +5,7 @@ import { CategoryGridScreen } from '@/components/menu/category-grid-screen';
 import { CART_BAR_HEIGHT, CartBar } from '@/components/order/cart-bar';
 import { useCart } from '@/hooks/use-cart';
 
-/** "Arma tu pedido": same category cards as the menu, but dishes can be added to the order. */
+/** Main screen, "Arma tu pedido": menu categories as photo cards; dishes can be added to the order. */
 export default function DeliveryScreen() {
   const cart = useCart();
 
@@ -19,7 +19,7 @@ export default function DeliveryScreen() {
           description="Elige una categoría y agrega tus platillos favoritos"
         />
       }
-      onOpen={(categoria) => router.push({ pathname: '/domicilio/[categoria]', params: { categoria } })}
+      onOpen={(nombre) => router.push({ pathname: '/categoria/[nombre]', params: { nombre } })}
       bottomInset={cart.count > 0 ? CART_BAR_HEIGHT : 0}
       overlay={<CartBar />}
     />

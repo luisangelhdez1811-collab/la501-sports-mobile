@@ -15,8 +15,8 @@ const CACHE_MS = 10 * 60 * 1000;
 const MIN_REFRESH_MS = 30 * 1000;
 const DISK_KEY = 'menu';
 
-// Sources, newest first: live server data → in-memory copy shared by Menú and "Arma tu
-// pedido" → copy saved on the device → menu bundled in the app (first launch offline).
+// Sources, newest first: live server data → in-memory copy shared by "Arma tu pedido" and
+// the waiter screens → copy saved on the device → menu bundled in the app (first launch offline).
 let cache: { categories: Category[]; missing: string[]; at: number } | null = null;
 // One network load at a time: every screen using the menu shares it (e.g. all of them
 // reloading together when the connection comes back).

@@ -13,13 +13,30 @@ export type User = {
   avatar: string | null;
 };
 
-// The role may come as "admin", "Administrador", { name: "admin" } or an is_admin flag.
+const ADMIN_ROLES = /^(super ?admin|admin|administrador|administradora|administrator|dueno|owner|gerente|manager)$/;
+// Every employee uses the waiter section (tables, orders, charging).
+const STAFF_ROLES = /^(mesero|mesera|meseros|waiter|waitress|empleado|empleada|employee|staff|personal|camarero|camarera|cajero|cajera)$/;
+
+const normalizeRole = (value: unknown) =>
+  asString(asObject(value)?.name ?? asObject(value)?.nombre ?? asObject(value)?.slug ?? value)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+
+/**
+ * The role may come as text ("Mesero", "empleado"), an object ({ name: "admin" }), a list
+ * (roles: ["mesero"]) or flags (is_admin, is_staff). Unknown values count as customer:
+ * staff screens are never shown by mistake, and the server checks the role anyway.
+ */
 function toRole(obj: Json): Role {
   if (obj.is_admin === true || obj.is_admin === 1) return 'admin';
-  const raw = pick(obj, 'role', 'rol', 'tipo', 'user_type');
-  const role = asString(asObject(raw)?.name ?? asObject(raw)?.nombre ?? raw).toLowerCase();
-  if (role === 'admin' || role === 'administrador' || role === 'administrator') return 'admin';
-  if (role === 'mesero' || role === 'waiter') return 'mesero';
+  const single = pick(obj, 'role', 'rol', 'tipo', 'tipo_usuario', 'user_type', 'user_role', 'perfil');
+  const list = Array.isArray(obj.roles) ? obj.roles : [];
+  const names = [single, ...list].map(normalizeRole).filter(Boolean);
+  if (names.some((name) => ADMIN_ROLES.test(name))) return 'admin';
+  if (names.some((name) => STAFF_ROLES.test(name))) return 'mesero';
+  if ([obj.is_staff, obj.is_employee, obj.es_empleado].some((flag) => flag === true || flag === 1)) return 'mesero';
   return 'cliente';
 }
 
@@ -71,6 +88,8 @@ export type RegisterInput = {
   securityAnswer: string;
   password: string;
   passwordConfirmation: string;
+  /** Optional, never pre-checked: promotions by email (secondary purpose). */
+  promoOptIn: boolean;
 };
 
 export async function register(input: RegisterInput) {
@@ -84,7 +103,10 @@ export async function register(input: RegisterInput) {
       respuesta_secreta: input.securityAnswer.trim(),
       password: input.password,
       password_confirmation: input.passwordConfirmation,
+      // Explicit consent recorded with the account (checkboxes are never pre-checked).
       terms: true,
+      acepta_aviso_privacidad: true,
+      acepta_promociones: input.promoOptIn,
     },
   });
   // Some backends log the user in on registration; if a token comes back, keep it.

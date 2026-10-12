@@ -32,6 +32,13 @@ type ProductDetailSheetProps = {
    * Cancelar / Agregar al pedido. Absent → read-only menu card.
    */
   onAdd?: (product: Product, excluded: Ingredient[], notes: string) => void;
+  /** Ordering mode: choices already made for this dish (e.g. editing a table's order). */
+  initialExcluded?: Ingredient[];
+  initialNotes?: string;
+  /** Ordering mode button text, "Agregar al pedido" by default. */
+  confirmLabel?: string;
+  /** Who the checklist speaks to, e.g. "Desmarca lo que el cliente no quiera." */
+  ingredientsHint?: string;
 };
 
 const ingredientKey = (ingredient: Ingredient) => String(ingredient.id ?? ingredient.name);
@@ -80,13 +87,22 @@ function IngredientToggle({
 }
 
 /** Dish card: full name, description, ingredients and price; optionally customize and add. */
-export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailSheetProps) {
+export function ProductDetailSheet({
+  product,
+  onClose,
+  onAdd,
+  initialExcluded,
+  initialNotes = '',
+  confirmLabel = 'Agregar al pedido',
+  ingredientsHint = 'Desmarca lo que no quieras en tu platillo.',
+}: ProductDetailSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [detailFailed, setDetailFailed] = useState(false);
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState('');
+  // Starting choices are read when the sheet mounts; give it a `key` per dish to reset them.
+  const [excluded, setExcluded] = useState<Set<string>>(() => new Set((initialExcluded ?? []).map(ingredientKey)));
+  const [notes, setNotes] = useState(initialNotes);
 
   const ordering = !!onAdd;
   // Only regular dishes have a detail endpoint (promotions don't).
@@ -233,7 +249,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                   <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Ingredientes a incluir</Text>
                     <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                      Desmarca lo que no quieras en tu platillo.
+                      {ingredientsHint}
                     </Text>
                     <View style={styles.grid}>
                       {ingredients.map((ingredient) => (
@@ -281,7 +297,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                   <View style={styles.actions}>
                     <BrandButton title="Cancelar" variant="secondary" onPress={close} style={styles.cancel} />
                     <BrandButton
-                      title={canOrder ? 'Agregar al pedido' : 'No disponible'}
+                      title={canOrder ? confirmLabel : 'No disponible'}
                       variant="action"
                       icon={canOrder ? { ios: 'cart.badge.plus', android: 'add_shopping_cart', web: 'add_shopping_cart' } : undefined}
                       onPress={add}

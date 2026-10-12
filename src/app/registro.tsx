@@ -44,7 +44,9 @@ export default function RegisterScreen() {
   const [answer, setAnswer] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // Consent checkboxes always start unchecked (explicit opt-in).
   const [terms, setTerms] = useState(false);
+  const [promoOptIn, setPromoOptIn] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -65,7 +67,7 @@ export default function RegisterScreen() {
     const next = validate();
     setErrors(next);
     if (Object.keys(next).length > 0) return setFormError('Revisa los campos marcados.');
-    if (!terms) return setFormError('Debes aceptar los términos y la política de privacidad.');
+    if (!terms) return setFormError('Para crear tu cuenta debes aceptar los Términos y el Aviso de privacidad.');
 
     setFormError(null);
     setSubmitting(true);
@@ -78,6 +80,7 @@ export default function RegisterScreen() {
         securityAnswer: answer,
         password,
         passwordConfirmation: confirm,
+        promoOptIn,
       });
       // Without an automatic session, send them to sign in with the new account.
       if (user) {
@@ -182,9 +185,24 @@ export default function RegisterScreen() {
           error={errors.confirm}
         />
 
-        <Checkbox checked={terms} onChange={setTerms} accessibilityLabel="Acepto los términos y la política de privacidad">
-          Acepto los <Text style={styles.link}>términos y condiciones</Text> y la{' '}
-          <Text style={styles.link}>política de privacidad</Text> de La 501 Sports Restaurant.
+        <FormSection>Privacidad</FormSection>
+        <Checkbox checked={terms} onChange={setTerms} accessibilityLabel="Acepto los términos y el aviso de privacidad">
+          He leído y acepto los{' '}
+          <Text style={styles.link} onPress={() => router.push('/terminos')} accessibilityRole="link">
+            Términos y condiciones
+          </Text>{' '}
+          y el{' '}
+          <Text style={styles.link} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
+            Aviso de privacidad
+          </Text>{' '}
+          de La 501 Sports Restaurant. <Text style={styles.required}>*</Text>
+        </Checkbox>
+        <Checkbox
+          checked={promoOptIn}
+          onChange={setPromoOptIn}
+          accessibilityLabel="Quiero recibir promociones por correo (opcional)">
+          Quiero recibir promociones y ofertas por correo (opcional). Puedes cambiarlo cuando quieras en Mis datos y
+          privacidad.
         </Checkbox>
 
         <BrandButton
@@ -215,5 +233,9 @@ const styles = StyleSheet.create({
   link: {
     color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
+    textDecorationLine: 'underline',
+  },
+  required: {
+    color: Brand.orange,
   },
 });

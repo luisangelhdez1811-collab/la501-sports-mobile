@@ -93,6 +93,33 @@ export async function updatePhone(phone: string) {
   await request('/app/account/phone', { method: 'PUT', body: { telefono: phone }, auth: true });
 }
 
+// ---- Derechos ARCO ----
+
+/** Rectificación: corrects name, email and phone in one request. */
+export async function updateProfile(input: { name: string; email: string; phone: string }) {
+  await request('/app/account', {
+    method: 'PUT',
+    auth: true,
+    body: {
+      name: input.name.trim(),
+      email: input.email.trim().toLowerCase(),
+      telefono: input.phone,
+    },
+  });
+}
+
+/**
+ * Cancelación: deletes the account and its personal data on the server. The password is
+ * asked again so a borrowed, unlocked phone can't erase someone's account.
+ */
+export async function deleteAccount(password: string) {
+  await request('/app/account', {
+    method: 'DELETE',
+    auth: true,
+    body: { password, confirmacion: 'ELIMINAR' },
+  });
+}
+
 export async function updatePassword(input: {
   current: string;
   password: string;

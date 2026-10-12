@@ -1,8 +1,9 @@
-import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Redirect, router } from 'expo-router';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { getAccount, togglePromoSubscription, updatePassword } from '@/api/account';
+import { updatePassword } from '@/api/account';
 import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -10,18 +11,20 @@ import { FormCard } from '@/components/brand/form-card';
 import { FormMessage } from '@/components/brand/form-message';
 import { PasswordRules } from '@/components/brand/password-rules';
 import { TextField } from '@/components/brand/text-field';
-import { BrandFonts } from '@/constants/brand';
+import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { isStrongPassword } from '@/utils/validation';
 
 type Message = { type: 'error' | 'success'; text: string } | null;
 
-function CardHeader({ emoji, title, description }: { emoji: string; title: string; description: string }) {
+function CardHeader({ icon, title, description }: { icon: SymbolViewProps['name']; title: string; description: string }) {
   const { colors } = useBrandTheme();
   return (
     <View style={styles.cardHeader}>
-      <Text style={styles.cardEmoji}>{emoji}</Text>
+      <View style={[styles.cardIcon, { backgroundColor: `${Brand.orange}1F`, borderColor: `${Brand.orange}55` }]}>
+        <SymbolView name={icon} size={20} tintColor={Brand.orange} />
+      </View>
       <View style={styles.cardHeaderText}>
         <Text style={[styles.cardTitle, { color: colors.text }]}>{title}</Text>
         <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>{description}</Text>
@@ -38,18 +41,6 @@ export default function SettingsScreen() {
   const [confirm, setConfirm] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<Message>(null);
-  const [subscribed, setSubscribed] = useState<boolean | null>(null);
-  const [toggling, setToggling] = useState(false);
-  const [promoMessage, setPromoMessage] = useState<Message>(null);
-
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    const controller = new AbortController();
-    getAccount(controller.signal)
-      .then((account) => setSubscribed(account.promoSubscribed))
-      .catch(() => {});
-    return () => controller.abort();
-  }, [status]);
 
   if (status === 'guest') return <Redirect href="/login" />;
 
@@ -75,24 +66,11 @@ export default function SettingsScreen() {
     }
   };
 
-  const togglePromos = async () => {
-    setToggling(true);
-    setPromoMessage(null);
-    try {
-      const next = await togglePromoSubscription();
-      setSubscribed((prev) => next ?? !prev);
-    } catch (err) {
-      setPromoMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setToggling(false);
-    }
-  };
-
   return (
     <BrandScreen showBack>
       <View style={styles.titleBlock}>
         <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
-          ⚙️ Configuración
+          Configuración
         </Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Administra la seguridad y preferencias de tu cuenta.
@@ -101,7 +79,7 @@ export default function SettingsScreen() {
 
       <FormCard>
         <CardHeader
-          emoji="🔒"
+          icon={{ ios: 'lock.fill', android: 'lock', web: 'lock' }}
           title="Cambiar contraseña"
           description="Usa una contraseña que no compartas con otras cuentas."
         />
@@ -136,26 +114,11 @@ export default function SettingsScreen() {
 
       <FormCard>
         <CardHeader
-          emoji="✉️"
-          title="Preferencias de correo"
-          description="Elige si quieres enterarte de nuestras promociones."
+          icon={{ ios: 'lock.shield', android: 'shield_person', web: 'shield_person' }}
+          title="Privacidad y promociones"
+          description="Consulta o corrige tus datos, elige si recibes promociones o elimina tu cuenta."
         />
-        <View style={styles.promoRow}>
-          <View style={styles.promoText}>
-            <Text style={[styles.promoTitle, { color: colors.text }]}>Promociones y ofertas</Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-              Te avisamos por correo cuando haya una promoción nueva o cambie una existente.
-            </Text>
-          </View>
-          <BrandButton
-            title={subscribed ? 'Desactivar' : 'Activar'}
-            variant={subscribed ? 'danger' : 'action'}
-            onPress={togglePromos}
-            loading={toggling}
-            disabled={subscribed === null}
-          />
-        </View>
-        {!!promoMessage && <FormMessage type={promoMessage.type}>{promoMessage.text}</FormMessage>}
+        <BrandButton title="Mis datos y privacidad" variant="secondary" onPress={() => router.push('/mis-datos')} />
       </FormCard>
     </BrandScreen>
   );
@@ -178,8 +141,13 @@ const styles = StyleSheet.create({
     gap: 14,
     alignItems: 'flex-start',
   },
-  cardEmoji: {
-    fontSize: 26,
+  cardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardHeaderText: {
     flex: 1,
@@ -193,18 +161,5 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.body,
     fontSize: 14,
     lineHeight: 20,
-  },
-  promoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  promoText: {
-    flex: 1,
-    gap: 4,
-  },
-  promoTitle: {
-    fontFamily: BrandFonts.bodyBold,
-    fontSize: 16,
   },
 });

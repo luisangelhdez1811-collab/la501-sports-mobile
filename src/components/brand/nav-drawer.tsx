@@ -13,14 +13,17 @@ type NavItem = { label: string; href: Href; signedInOnly?: boolean };
 
 // Same order as the website menu.
 const ITEMS: NavItem[] = [
-  { label: 'A domicilio', href: '/domicilio' },
+  { label: 'A domicilio', href: '/' },
   { label: 'Mis pedidos', href: '/pedidos' },
-  { label: 'Menú', href: '/' },
   { label: 'Quiénes somos', href: '/quienes-somos' },
+  { label: 'Ubicación', href: '/ubicacion' },
   { label: 'Reservaciones', href: '/reservar' },
   { label: 'Promociones', href: '/promociones' },
   { label: 'Novedades', href: '/novedades' },
+  { label: 'Mis datos y privacidad', href: '/mis-datos', signedInOnly: true },
   { label: 'Configuración', href: '/configuracion', signedInOnly: true },
+  { label: 'Aviso de privacidad', href: '/aviso-privacidad' },
+  { label: 'Términos y condiciones', href: '/terminos' },
 ];
 
 // Admin panel sections (the website's admin menu), plus the public pages.
@@ -32,6 +35,14 @@ const ADMIN_ITEMS: NavItem[] = [
   { label: 'Quiénes somos', href: '/quienes-somos' },
   { label: 'Novedades', href: '/novedades' },
   { label: 'Configuración', href: '/configuracion' },
+  { label: 'Aviso de privacidad', href: '/aviso-privacidad' },
+];
+
+// Waiter sections plus the public pages.
+const WAITER_ITEMS: NavItem[] = [
+  { label: 'Mapa de mesas', href: '/mesero' },
+  { label: 'Configuración', href: '/configuracion' },
+  { label: 'Aviso de privacidad', href: '/aviso-privacidad' },
 ];
 
 const ROLE_LABEL = { cliente: 'Cliente', mesero: 'Mesero', admin: 'Administrador' } as const;
@@ -86,7 +97,7 @@ export function NavDrawer() {
             </View>
           )}
 
-          {(user?.role === 'admin' ? ADMIN_ITEMS : ITEMS).filter((item) => !item.signedInOnly || user).map((item) => (
+          {(user?.role === 'admin' ? ADMIN_ITEMS : user?.role === 'mesero' ? WAITER_ITEMS : ITEMS).filter((item) => !item.signedInOnly || user).map((item) => (
             <Pressable
               key={item.label}
               accessibilityRole="link"

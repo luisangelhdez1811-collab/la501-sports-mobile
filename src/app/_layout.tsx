@@ -36,6 +36,8 @@ function RootNavigator() {
   const { scheme } = useBrandTheme();
   const { status, user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isWaiter = user?.role === 'mesero';
+  const isCustomer = !isAdmin && !isWaiter;
   const [fontsLoaded, fontError] = useFonts({
     BebasNeue_400Regular,
     Oswald_500Medium,
@@ -70,7 +72,7 @@ function RootNavigator() {
               sections; switching role (sign in / out) moves to the other set by itself.
               This is navigation only: the server checks the role on every admin request. */}
           <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Protected guard={!isAdmin}>
+            <Stack.Protected guard={isCustomer}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="carrito" />
               <Stack.Screen name="checkout" />
@@ -78,6 +80,10 @@ function RootNavigator() {
             </Stack.Protected>
             <Stack.Protected guard={isAdmin}>
               <Stack.Screen name="admin" />
+            </Stack.Protected>
+            <Stack.Protected guard={isWaiter}>
+              <Stack.Screen name="mesero" />
+              <Stack.Screen name="mesa/[id]" />
             </Stack.Protected>
           </Stack>
           <NavDrawer />

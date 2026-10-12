@@ -14,12 +14,7 @@ export default function AppTabs() {
       indicatorColor={colors.border}
       iconColor={{ default: colors.textSecondary, selected: Brand.orange }}
       labelStyle={{ default: { color: colors.textSecondary }, selected: { color: Brand.orange } }}>
-      <NativeTabs.Trigger name="(menu)">
-        <NativeTabs.Trigger.Label>Menú</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'fork.knife', selected: 'fork.knife' }} md="restaurant_menu" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="domicilio">
+      <NativeTabs.Trigger name="(pedir)">
         <NativeTabs.Trigger.Label>Pedir</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'bicycle', selected: 'bicycle' }} md="delivery_dining" />
       </NativeTabs.Trigger>

@@ -63,7 +63,8 @@ export function AppHeader({ showBack = false }: { showBack?: boolean }) {
   const cart = useCart();
   const drawer = useDrawer();
   const isDark = scheme === 'dark';
-  const isAdmin = user?.role === 'admin';
+  const isStaff = !!user && user.role !== 'cliente';
+  const profileHref = user?.role === 'admin' ? '/admin/perfil' : user?.role === 'mesero' ? '/mesero/perfil' : '/cuenta';
 
   return (
     <View
@@ -100,7 +101,7 @@ export function AppHeader({ showBack = false }: { showBack?: boolean }) {
           onPress={toggleScheme}
         />
         {user && (
-          <HeaderButton label={`Mi cuenta, ${user.name}`} onPress={() => router.navigate(isAdmin ? '/admin/perfil' : '/cuenta')}>
+          <HeaderButton label={`Mi cuenta, ${user.name}`} onPress={() => router.navigate(profileHref)}>
             {user.avatar ? (
               <Image source={{ uri: user.avatar }} style={styles.avatar} contentFit="cover" />
             ) : (
@@ -110,8 +111,8 @@ export function AppHeader({ showBack = false }: { showBack?: boolean }) {
             )}
           </HeaderButton>
         )}
-        {/* The admin panel has no cart. */}
-        {!isAdmin && (
+        {/* Staff sections have no cart. */}
+        {!isStaff && (
           <HeaderButton
             icon={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }}
             label={`Carrito, ${cart.count} productos`}

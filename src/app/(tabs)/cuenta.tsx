@@ -189,6 +189,12 @@ export default function AccountScreen() {
       </FormCard>
 
       <BrandButton
+        title="Mis datos y privacidad"
+        variant="secondary"
+        icon={{ ios: 'lock.shield', android: 'shield_person', web: 'shield_person' }}
+        onPress={() => router.push('/mis-datos')}
+      />
+      <BrandButton
         title="Configuración"
         variant="secondary"
         icon={{ ios: 'gearshape', android: 'settings', web: 'settings' }}

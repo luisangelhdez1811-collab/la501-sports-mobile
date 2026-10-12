@@ -13,6 +13,7 @@ import { OfflineBanner } from '@/components/brand/offline-banner';
 import { PageHero } from '@/components/brand/page-hero';
 import { SelectField } from '@/components/brand/select-field';
 import { TextField } from '@/components/brand/text-field';
+import { ScheduleCard } from '@/components/info/schedule-card';
 import { DateField, startOfDay, TimeField } from '@/components/reservation/pickers';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
@@ -24,7 +25,6 @@ import {
   formatTime12,
   bookingWindow,
   isBookable,
-  WEEKDAYS,
 } from '@/utils/opening-hours';
 import { isEmail, isPhone, normalizePhone } from '@/utils/validation';
 
@@ -43,9 +43,6 @@ const ZONES: { value: ReservationZone; label: string; icon: SymbolViewProps['nam
   { value: 'General', label: 'Área general', icon: { ios: 'fork.knife', android: 'restaurant', web: 'restaurant' } },
   { value: 'Terraza', label: 'Terraza', icon: { ios: 'leaf.fill', android: 'park', web: 'park' } },
 ];
-
-// Schedule card rows, Monday first.
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 type Errors = Partial<Record<'name' | 'phone' | 'email' | 'date' | 'time', string>>;
 
@@ -272,24 +269,7 @@ export default function ReserveScreen() {
           )}
         </FormCard>
 
-        <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={styles.infoTitle}>Horarios</Text>
-          {WEEK_ORDER.map((day) => {
-            const h = hours[day];
-            const isToday = day === today.getDay();
-            return (
-              <View key={day} style={[styles.scheduleRow, { borderTopColor: colors.border }]}>
-                <Text style={[styles.scheduleDay, { color: isToday ? Brand.orange : colors.textSecondary }]}>
-                  {WEEKDAYS[day]}
-                  {isToday ? ' · hoy' : ''}
-                </Text>
-                <Text style={[styles.scheduleHours, { color: h ? colors.text : Brand.red }]}>
-                  {h ? `${formatTime12(h.open)} – ${formatTime12(h.close)}` : 'Cerrado'}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        <ScheduleCard hours={hours} />
 
         <View style={[styles.notice, { borderColor: `${Brand.orange}55`, backgroundColor: `${Brand.orange}10` }]}>
           <SymbolView
@@ -379,36 +359,6 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 14,
     lineHeight: 20,
-  },
-  infoCard: {
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-  },
-  infoTitle: {
-    color: Brand.orange,
-    fontFamily: BrandFonts.labelBold,
-    fontSize: 15,
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  scheduleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 9,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  scheduleDay: {
-    fontFamily: BrandFonts.bodyMedium,
-    fontSize: 14,
-    textTransform: 'capitalize',
-  },
-  scheduleHours: {
-    fontFamily: BrandFonts.bodyBold,
-    fontSize: 14,
   },
   notice: {
     flexDirection: 'row',

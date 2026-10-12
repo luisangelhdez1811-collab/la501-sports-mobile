@@ -2,8 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { CategoryScreen } from '@/components/menu/category-screen';
 
-/** Dishes of one menu category (read-only). */
-export default function MenuCategoryScreen() {
+/** Dishes of one category, with Personalizar + Agregar al pedido. */
+export default function DeliveryCategoryScreen() {
   const { nombre, sub } = useLocalSearchParams<{ nombre: string; sub?: string }>();
 
   return (

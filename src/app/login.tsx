@@ -14,13 +14,14 @@ import { isEmail } from '@/utils/validation';
 
 export default function LoginScreen() {
   const { signIn, user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const role = user?.role;
 
-  // Admins have their own sections; the customer screens behind this one are closed to
-  // them, so go straight to the panel once the admin screens are available.
+  // Staff have their own sections; the customer screens behind this one are closed to
+  // them, so go straight to theirs once those screens are available.
   useEffect(() => {
-    if (isAdmin) router.replace('/admin');
-  }, [isAdmin]);
+    if (role === 'admin') router.replace('/admin');
+    else if (role === 'mesero') router.replace('/mesero');
+  }, [role]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
@@ -35,7 +36,7 @@ export default function LoginScreen() {
     setSubmitting(true);
     try {
       const signedIn = await signIn(email, password, remember);
-      if (signedIn.role === 'admin') return; // the effect above opens the panel
+      if (signedIn.role !== 'cliente') return; // the effect above opens their section
       // Back to wherever sign-in was opened from (Cuenta, Pedidos, the ☰ panel…).
       if (router.canGoBack()) router.back();
       else router.replace('/');

@@ -38,15 +38,13 @@ type CategoryScreenProps = {
   nombre: string;
   sub?: string;
   onOpenSubcategory: (sub: string) => void;
-  /** "Arma tu pedido": dish cards say "Agregar" and the sheet can add to the cart. */
-  ordering?: boolean;
 };
 
 /**
- * One menu category. Categories with subcategories (Destilados → Ron, Mezcal, Tequila…)
+ * One menu category in "Arma tu pedido": dish cards say "Agregar" and the sheet adds to the cart. Categories with subcategories (Destilados → Ron, Mezcal, Tequila…)
  * first show subcategory cards; `sub` then lists that subcategory's dishes.
  */
-export function CategoryScreen({ nombre, sub, onOpenSubcategory, ordering = false }: CategoryScreenProps) {
+export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScreenProps) {
   const { width } = useWindowDimensions();
   const { colors } = useBrandTheme();
   const cart = useCart();
@@ -85,7 +83,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory, ordering = fals
   const countLabel = showingSubcategories
     ? `${count} ${count === 1 ? 'tipo' : 'tipos'}`
     : `${count} ${count === 1 ? 'platillo' : 'platillos'}`;
-  const cartInset = ordering && cart.count > 0 ? CART_BAR_HEIGHT : 0;
+  const cartInset = cart.count > 0 ? CART_BAR_HEIGHT : 0;
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -163,7 +161,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory, ordering = fals
               product={item.product}
               width={cardWidth}
               onPress={setSelected}
-              actionLabel={ordering ? (item.product.available ? 'Agregar' : 'Agotado') : 'Ver detalles'}
+              actionLabel={item.product.available ? 'Agregar' : 'Agotado'}
             />
           )
         }
@@ -180,11 +178,11 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory, ordering = fals
         initialNumToRender={6}
         windowSize={7}
       />
-      {ordering && <CartBar />}
+      <CartBar />
       <ProductDetailSheet
         product={selected}
         onClose={() => setSelected(null)}
-        onAdd={ordering ? (product, excluded, notes) => cart.add(product, { excluded, notes }) : undefined}
+        onAdd={(product, excluded, notes) => cart.add(product, { excluded, notes })}
       />
     </View>
   );

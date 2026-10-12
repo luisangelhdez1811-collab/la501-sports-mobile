@@ -22,7 +22,7 @@ function TabButton({ icon, label, isFocused, ...props }: TabButtonProps) {
   );
 }
 
-// Same five sections as the native tab bar.
+// Same sections as the native tab bar.
 export default function AppTabs() {
   const { colors } = useBrandTheme();
 
@@ -31,10 +31,7 @@ export default function AppTabs() {
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <View style={[styles.bar, { backgroundColor: colors.header, borderTopColor: colors.border }]}>
-          <TabTrigger name="(menu)" href="/" asChild>
-            <TabButton icon={{ web: 'restaurant_menu' }} label="Menú" />
-          </TabTrigger>
-          <TabTrigger name="domicilio" href="/domicilio" asChild>
+          <TabTrigger name="(pedir)" href="/" asChild>
             <TabButton icon={{ web: 'delivery_dining' }} label="Pedir" />
           </TabTrigger>
           <TabTrigger name="promociones" href="/promociones" asChild>

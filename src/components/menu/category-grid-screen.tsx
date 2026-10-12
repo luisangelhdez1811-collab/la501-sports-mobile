@@ -21,7 +21,7 @@ type CategoryGridScreenProps = {
   overlay?: ReactNode;
 };
 
-/** Menu categories as photo cards. Shared by Menú and "Arma tu pedido". */
+/** Menu categories as photo cards ("Arma tu pedido"). */
 export function CategoryGridScreen({ hero, onOpen, bottomInset = 0, overlay }: CategoryGridScreenProps) {
   const { width } = useWindowDimensions();
   const { colors } = useBrandTheme();

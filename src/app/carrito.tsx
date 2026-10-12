@@ -35,7 +35,7 @@ function EmptyCart() {
         <Text style={[styles.text, styles.center, { color: colors.textSecondary }]}>
           Aún no has agregado nada delicioso a tu pedido.
         </Text>
-        <SkewButton title="Ver menú" onPress={() => router.navigate('/domicilio')} />
+        <SkewButton title="Ver menú" onPress={() => router.navigate('/')} />
       </View>
     </FormCard>
   );
