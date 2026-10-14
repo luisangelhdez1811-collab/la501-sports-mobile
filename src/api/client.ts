@@ -73,7 +73,7 @@ function codeMessage(code: string | null, retryAfter: number | null): string | n
   if (code === 'phone_taken') return 'Ese teléfono ya está registrado en otra cuenta.';
   if (code === 'phone_change_requires_otp') return 'Para cambiar tu teléfono usa la opción "Cambiar teléfono".';
   if (code === 'sms_unavailable') {
-    return 'No pudimos enviar el código en este momento. Intenta con una llamada o más tarde.';
+    return 'No pudimos enviar el SMS en este momento. Intenta de nuevo en unos minutos.';
   }
   return null;
 }

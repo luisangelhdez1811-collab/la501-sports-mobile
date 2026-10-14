@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { requestPhoneOtp, updatePhone } from '@/api/account';
-import type { CodeChannel } from '@/api/auth';
 import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { FormMessage } from '@/components/brand/form-message';
@@ -27,21 +26,17 @@ export function PhoneChange({ current, onChanged }: { current: string | null; on
   const [step, setStep] = useState<Step>('idle');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [channel, setChannel] = useState<CodeChannel>('sms');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
 
-  const sendCode = async (via: CodeChannel = 'sms') => {
+  const sendCode = async () => {
     if (!isPhone(phone)) return setMessage({ type: 'error', text: 'El teléfono debe tener 10 dígitos.' });
     if (phone === current) return setMessage({ type: 'error', text: 'Ese ya es tu teléfono actual.' });
     setBusy(true);
     setMessage(null);
     try {
-      await cooldown.track(() => requestPhoneOtp(phone, via));
-      if (step === 'code') {
-        setMessage({ type: 'success', text: via === 'llamada' ? 'Te estamos llamando.' : 'Te enviamos un código nuevo.' });
-      }
-      setChannel(via);
+      await cooldown.track(() => requestPhoneOtp(phone));
+      if (step === 'code') setMessage({ type: 'success', text: 'Te enviamos un código nuevo.' });
       setStep('code');
     } catch (err) {
       setMessage({ type: 'error', text: errorMessage(err) });
@@ -104,8 +99,7 @@ export function PhoneChange({ current, onChanged }: { current: string | null; on
             maxLength={10}
             hint="Te enviaremos un código a este número para confirmar que es tuyo."
           />
-          <BrandButton title="Enviar código por SMS" onPress={() => sendCode()} loading={busy} />
-          <TextLink prefix="¿Prefieres que te llamemos?" label="Recibir llamada" onPress={() => sendCode('llamada')} />
+          <BrandButton title="Enviar código por SMS" onPress={sendCode} loading={busy} />
           <TextLink label="Cancelar" muted onPress={cancel} />
         </>
       )}
@@ -113,9 +107,7 @@ export function PhoneChange({ current, onChanged }: { current: string | null; on
       {step === 'code' && (
         <>
           <Text style={[styles.lead, { color: colors.textSecondary }]}>
-            {channel === 'llamada'
-              ? `Recibirás una llamada al ${phone} que te dirá el código.`
-              : `Escribe el código que enviamos por SMS al ${phone}.`}
+            {`Escribe el código que enviamos por SMS al ${phone}.`}
           </Text>
           <CodeField value={code} onChange={setCode} />
           <BrandButton title="Confirmar teléfono" onPress={confirm} loading={busy} />

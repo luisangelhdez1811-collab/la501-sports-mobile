@@ -1,4 +1,3 @@
-import type { CodeChannel } from './auth';
 import { request } from './client';
 import { asArray, asNumber, asObject, asString, pick, unwrap } from './parse';
 
@@ -91,11 +90,11 @@ export async function getAccount(signal?: AbortSignal): Promise<Account> {
 }
 
 /** Sends a code to the NEW number; the change is saved only once that code is confirmed. */
-export async function requestPhoneOtp(phone: string, channel: CodeChannel = 'sms') {
+export async function requestPhoneOtp(phone: string) {
   await request('/app/account/phone/request-otp', {
     method: 'POST',
     auth: true,
-    body: { telefono: phone, canal: channel },
+    body: { telefono: phone, canal: 'sms' },
   });
 }
 
@@ -174,8 +173,8 @@ export async function trackOrder(token: string, signal?: AbortSignal) {
   };
 }
 
-export async function requestOrderOtp(phone: string, channel: CodeChannel = 'sms') {
-  await request('/app/orders/lookup/request-otp', { method: 'POST', body: { telefono: phone, canal: channel } });
+export async function requestOrderOtp(phone: string) {
+  await request('/app/orders/lookup/request-otp', { method: 'POST', body: { telefono: phone, canal: 'sms' } });
 }
 
 export async function verifyOrderOtp(phone: string, code: string) {

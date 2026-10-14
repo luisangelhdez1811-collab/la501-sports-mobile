@@ -1,6 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
-import type { CodeChannel } from '@/api/auth';
 import { formatWait } from '@/api/client';
 import { TextField } from '@/components/brand/text-field';
 import { TextLink } from '@/components/brand/text-link';
@@ -30,17 +29,14 @@ export function isCompleteCode(code: string) {
   return code.length === CODE_LENGTH;
 }
 
-/**
- * "Reenviar SMS · Recibir llamada" once the wait is over. The call reads the code out
- * loud, for people who have trouble with text messages. Email codes only offer resend.
- */
+/** "Reenviar SMS" (or "Reenviar código" for email) once the wait is over. */
 export function ResendCode({
   remaining,
   onResend,
   phone = true,
 }: {
   remaining: number;
-  onResend: (channel: CodeChannel) => void;
+  onResend: () => void;
   phone?: boolean;
 }) {
   const { colors } = useBrandTheme();
@@ -52,13 +48,7 @@ export function ResendCode({
       </Text>
     );
   }
-  if (!phone) return <TextLink prefix="¿No te llegó?" label="Reenviar código" onPress={() => onResend('sms')} />;
-  return (
-    <View style={styles.row}>
-      <TextLink prefix="¿No te llegó?" label="Reenviar SMS" onPress={() => onResend('sms')} />
-      <TextLink prefix="o" label="Recibir una llamada" onPress={() => onResend('llamada')} />
-    </View>
-  );
+  return <TextLink prefix="¿No te llegó?" label={phone ? 'Reenviar SMS' : 'Reenviar código'} onPress={onResend} />;
 }
 
 const styles = StyleSheet.create({
@@ -66,8 +56,5 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 14,
     textAlign: 'center',
-  },
-  row: {
-    gap: 8,
   },
 });

@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { getMyOrders, requestOrderOtp, verifyOrderOtp, type OrderSummary } from '@/api/account';
-import type { CodeChannel } from '@/api/auth';
 import { errorMessage } from '@/api/client';
 import { OrdersList } from '@/components/account/orders-list';
 import { BrandButton } from '@/components/brand/brand-button';
@@ -31,19 +30,17 @@ function GuestLookup() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [channel, setChannel] = useState<CodeChannel>('sms');
   const [notice, setNotice] = useState<string | null>(null);
   const cooldown = useCooldown();
 
-  const sendCode = async (via: CodeChannel = 'sms') => {
+  const sendCode = async () => {
     if (!isPhone(phone)) return setError('El teléfono debe tener 10 dígitos.');
     setError(null);
     setNotice(null);
     setSubmitting(true);
     try {
-      await cooldown.track(() => requestOrderOtp(phone, via));
-      setChannel(via);
-      if (step === 'code') setNotice(via === 'llamada' ? 'Te estamos llamando.' : 'Te enviamos un código nuevo.');
+      await cooldown.track(() => requestOrderOtp(phone));
+      if (step === 'code') setNotice('Te enviamos un código nuevo.');
       setStep('code');
     } catch (err) {
       setError(errorMessage(err));
@@ -96,9 +93,7 @@ function GuestLookup() {
       <Text style={[styles.text, { color: colors.textSecondary }]}>
         {step === 'phone'
           ? 'Escribe el teléfono con el que hiciste tu pedido y te enviaremos un código.'
-          : channel === 'llamada'
-            ? `Recibirás una llamada al ${phone} que te dirá el código.`
-            : `Escribe el código que enviamos por SMS al ${phone}.`}
+          : `Escribe el código que enviamos por SMS al ${phone}.`}
       </Text>
       {!!error && <FormMessage type="error">{error}</FormMessage>}
       {!!notice && <FormMessage type="success">{notice}</FormMessage>}
@@ -113,8 +108,7 @@ function GuestLookup() {
             autoComplete="tel"
             maxLength={10}
           />
-          <BrandButton title="Enviar código por SMS" onPress={() => sendCode()} loading={submitting} />
-          <TextLink prefix="¿Prefieres que te llamemos?" label="Recibir llamada" onPress={() => sendCode('llamada')} />
+          <BrandButton title="Enviar código por SMS" onPress={sendCode} loading={submitting} />
         </>
       ) : (
         <>

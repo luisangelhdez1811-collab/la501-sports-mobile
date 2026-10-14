@@ -135,10 +135,7 @@ export async function me(signal?: AbortSignal) {
   return toUser(pick(body, 'user') ?? body);
 }
 
-/** How a phone code is delivered: text message, or an automated call that reads it out. */
-export type CodeChannel = 'sms' | 'llamada';
-
-/** Where a password-reset code goes: the email, or the phone (by SMS or call). */
+/** Where a password-reset code goes: the email, or the phone (by SMS). */
 export type RecoveryTarget = { email: string } | { phone: string };
 
 function recoveryId(target: RecoveryTarget) {
@@ -146,16 +143,37 @@ function recoveryId(target: RecoveryTarget) {
 }
 
 /** Always succeeds whether or not the account exists, so it can't be used to probe accounts. */
-export async function forgotPassword(target: RecoveryTarget, channel: CodeChannel = 'sms') {
+export async function forgotPassword(target: RecoveryTarget) {
   await request('/app/auth/forgot-password', {
     method: 'POST',
-    body: 'email' in target ? recoveryId(target) : { ...recoveryId(target), canal: channel },
+    body: 'email' in target ? recoveryId(target) : { ...recoveryId(target), canal: 'sms' },
   });
 }
 
-/** Checks the code and sets the new password in one step; the server ends every session. */
+/**
+ * Step 2 of 3: checks the code before asking for the new password (like the website).
+ * Returns the one-time reset token, or null while the server has no separate check
+ * (404): then the code itself goes with the new password, as before.
+ */
+export async function verifyResetCode(target: RecoveryTarget, code: string): Promise<string | null> {
+  try {
+    const data = await request<unknown>('/app/auth/verify-reset-code', {
+      method: 'POST',
+      body: { ...recoveryId(target), code: code.trim() },
+    });
+    const root = asObject(data) ?? {};
+    return asString(pick(root, 'reset_token') ?? pick(unwrap(data), 'reset_token')) || null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Step 3 of 3: sets the new password; the server ends every session of the account. */
 export async function resetPassword(input: {
   target: RecoveryTarget;
+  /** From verifyResetCode; without it, the code is checked here. */
+  resetToken: string | null;
   code: string;
   password: string;
   passwordConfirmation: string;
@@ -164,7 +182,7 @@ export async function resetPassword(input: {
     method: 'POST',
     body: {
       ...recoveryId(input.target),
-      code: input.code.trim(),
+      ...(input.resetToken ? { reset_token: input.resetToken } : { code: input.code.trim() }),
       password: input.password,
       password_confirmation: input.passwordConfirmation,
     },
