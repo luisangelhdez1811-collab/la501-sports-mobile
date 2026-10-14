@@ -1,3 +1,4 @@
+import type { CodeChannel } from './auth';
 import { request } from './client';
 import { asArray, asNumber, asObject, asString, pick, unwrap } from './parse';
 
@@ -89,13 +90,26 @@ export async function getAccount(signal?: AbortSignal): Promise<Account> {
   };
 }
 
-export async function updatePhone(phone: string) {
-  await request('/app/account/phone', { method: 'PUT', body: { telefono: phone }, auth: true });
+/** Sends a code to the NEW number; the change is saved only once that code is confirmed. */
+export async function requestPhoneOtp(phone: string, channel: CodeChannel = 'sms') {
+  await request('/app/account/phone/request-otp', {
+    method: 'POST',
+    auth: true,
+    body: { telefono: phone, canal: channel },
+  });
+}
+
+// This endpoint names the code "codigo" (the others use "code").
+export async function updatePhone(phone: string, code: string) {
+  await request('/app/account/phone', { method: 'PUT', body: { telefono: phone, codigo: code.trim() }, auth: true });
 }
 
 // ---- Derechos ARCO ----
 
-/** Rectificación: corrects name, email and phone in one request. */
+/**
+ * Rectificación: corrects name and email. `phone` must be the current one: a new number
+ * goes through requestPhoneOtp + updatePhone.
+ */
 export async function updateProfile(input: { name: string; email: string; phone: string }) {
   await request('/app/account', {
     method: 'PUT',
@@ -160,15 +174,16 @@ export async function trackOrder(token: string, signal?: AbortSignal) {
   };
 }
 
-export async function requestOrderOtp(phone: string) {
-  await request('/app/orders/lookup/request-otp', { method: 'POST', body: { telefono: phone } });
+export async function requestOrderOtp(phone: string, channel: CodeChannel = 'sms') {
+  await request('/app/orders/lookup/request-otp', { method: 'POST', body: { telefono: phone, canal: channel } });
 }
 
 export async function verifyOrderOtp(phone: string, code: string) {
   return toOrders(
     await request<unknown>('/app/orders/lookup/verify-otp', {
       method: 'POST',
-      body: { telefono: phone, codigo: code.trim() },
+      // The server reads "codigo" here (its notes said "code"); both are sent so either works.
+      body: { telefono: phone, codigo: code.trim(), code: code.trim() },
     }),
   );
 }

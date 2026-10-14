@@ -21,12 +21,15 @@ export class ApiError extends Error {
   readonly status: number;
   /** Seconds the server asked us to wait (429 Too Many Requests). */
   readonly retryAfter: number | null;
+  /** Machine-readable reason from the server, e.g. "phone_taken" or "invalid_or_expired_code". */
+  readonly code: string | null;
 
-  constructor(message: string, status: number, retryAfter: number | null = null) {
+  constructor(message: string, status: number, retryAfter: number | null = null, code: string | null = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.retryAfter = retryAfter;
+    this.code = code;
   }
 }
 
@@ -52,9 +55,34 @@ function assertSafePath(path: string) {
   }
 }
 
+/** "45 segundos" / "8 minutos". */
+export function formatWait(seconds: number) {
+  if (seconds < 60) return `${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+}
+
+// Verification-code errors get fixed wording, the same on every screen.
+function codeMessage(code: string | null, retryAfter: number | null): string | null {
+  if (code === 'too_many_attempts') {
+    return retryAfter
+      ? `Ya pediste varios códigos. Podrás pedir otro en ${formatWait(retryAfter)}.`
+      : 'Ya pediste varios códigos. Espera unos minutos para pedir otro.';
+  }
+  if (code === 'invalid_or_expired_code') return 'El código no es correcto o ya caducó. Revísalo o pide uno nuevo.';
+  if (code === 'phone_taken') return 'Ese teléfono ya está registrado en otra cuenta.';
+  if (code === 'phone_change_requires_otp') return 'Para cambiar tu teléfono usa la opción "Cambiar teléfono".';
+  if (code === 'sms_unavailable') {
+    return 'No pudimos enviar el código en este momento. Intenta con una llamada o más tarde.';
+  }
+  return null;
+}
+
 // Server messages are only shown for client errors (validation, wrong password...).
 // 5xx responses may contain stack traces or SQL details, so they are never surfaced.
-function userMessage(status: number, data: unknown, retryAfter: number | null): string {
+function userMessage(status: number, data: unknown, retryAfter: number | null, code: string | null): string {
+  const verification = codeMessage(code, retryAfter);
+  if (verification) return verification;
   // Laravel's throttle message is in English; always explain it in Spanish.
   if (status === 429) {
     return retryAfter
@@ -117,7 +145,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (!res.ok) {
     const parsed = Number.parseInt(res.headers.get('retry-after') ?? '', 10);
     const retryAfter = Number.isFinite(parsed) ? parsed : null;
-    throw new ApiError(userMessage(res.status, data, retryAfter), res.status, retryAfter);
+    const reason = (data as { error?: unknown } | null)?.error;
+    // A short snake_case token is a reason code; longer text is a message.
+    const code = typeof reason === 'string' && /^[a-z_]{3,40}$/.test(reason) ? reason : null;
+    throw new ApiError(userMessage(res.status, data, retryAfter, code), res.status, retryAfter, code);
   }
 
   return data as T;

@@ -37,6 +37,32 @@ function loadMenu(previous: Category[]) {
   return inflight;
 }
 
+/** Loads the menu from the server and keeps it as the shared copy (and on the device). */
+async function fetchMenu(previous: Category[]) {
+  const result = await loadMenu(previous);
+  cache = { ...result, at: Date.now() };
+  if (result.missing.length === 0) writeCache(DISK_KEY, result.categories);
+  saveForOffline(result.categories);
+  return result;
+}
+
+/** The newest menu available without the network: saved on the device or bundled. */
+async function localMenu() {
+  const disk = await readCache<Category[]>(DISK_KEY);
+  return disk && disk.savedAt > SNAPSHOT_AT ? disk.data : null;
+}
+
+/**
+ * Starts loading the menu before any screen asks for it (while the splash is showing).
+ * A screen that opens meanwhile joins the same request instead of starting another.
+ */
+export function preloadMenu() {
+  if (freshCache() || inflight) return;
+  localMenu()
+    .then((saved) => fetchMenu(cache?.categories ?? saved ?? snapshotMenu()))
+    .catch(() => {}); // offline: screens fall back to the saved menu by themselves
+}
+
 // Everything needed to browse the menu offline: every photo and every dish's
 // ingredients. Both run in the background and resume on the next successful load.
 function saveForOffline(categories: Category[]) {
@@ -78,18 +104,14 @@ export function useMenu() {
 
     (async () => {
       // A copy saved on the device replaces the bundled one if it's newer.
-      const disk = cache ? null : await readCache<Category[]>(DISK_KEY);
-      const saved = disk && disk.savedAt > SNAPSHOT_AT ? disk : null;
+      const saved = cache ? null : await localMenu();
       if (!active) return;
-      if (saved && !cache) setState((s) => ({ ...s, categories: saved.data, loading: false }));
+      if (saved && !cache) setState((s) => ({ ...s, categories: saved, loading: false }));
       // Fallback for any category that fails to load, and for offline.
-      const previous = cache?.categories ?? saved?.data ?? snapshotMenu();
+      const previous = cache?.categories ?? saved ?? snapshotMenu();
 
       try {
-        const { categories, missing } = await loadMenu(previous);
-        cache = { categories, missing, at: Date.now() };
-        if (missing.length === 0) writeCache(DISK_KEY, categories);
-        saveForOffline(categories);
+        const { categories, missing } = await fetchMenu(previous);
         if (active) {
           setState({ categories, missing, loading: false, refreshing: false, error: null, stale: false });
         }

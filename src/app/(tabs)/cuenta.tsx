@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { getAccount, updatePhone, type Account } from '@/api/account';
-import { errorMessage } from '@/api/client';
+import { getAccount, type Account } from '@/api/account';
 import { OrdersList } from '@/components/account/orders-list';
+import { PhoneChange } from '@/components/account/phone-change';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { OfflineBanner } from '@/components/brand/offline-banner';
@@ -17,7 +16,6 @@ import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
-import { isPhone, normalizePhone } from '@/utils/validation';
 
 const monthYear = new Intl.DateTimeFormat('es-MX', { month: 'short', year: 'numeric' });
 
@@ -63,9 +61,6 @@ function Stat({ value, label, color }: { value: number; label: string; color: st
 export default function AccountScreen() {
   const { colors } = useBrandTheme();
   const { status, user, signOut } = useAuth();
-  const [phoneDraft, setPhoneDraft] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
   const signedIn = status === 'authenticated';
   const {
@@ -76,10 +71,6 @@ export default function AccountScreen() {
     reload,
     refresh,
   } = useCachedResource<Account>('account', getAccount, { enabled: signedIn });
-
-  // The field shows the saved phone until the customer starts editing it.
-  const phone = phoneDraft ?? account?.phone ?? '';
-  const setPhone = (value: string) => setPhoneDraft(value);
 
   if (status === 'loading') {
     return (
@@ -96,22 +87,6 @@ export default function AccountScreen() {
       </BrandScreen>
     );
   }
-
-  const savePhone = async () => {
-    if (!isPhone(phone)) return setMessage({ type: 'error', text: 'El teléfono debe tener 10 dígitos.' });
-    setSaving(true);
-    setMessage(null);
-    try {
-      await updatePhone(normalizePhone(phone));
-      setMessage({ type: 'success', text: 'Teléfono actualizado.' });
-      setPhoneDraft(null);
-      reload();
-    } catch (err) {
-      setMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <BrandScreen refreshing={refreshing} onRefresh={refresh}>
@@ -158,22 +133,11 @@ export default function AccountScreen() {
           editable={false}
           hint="Dato de seguridad (no editable)"
         />
-        <TextField
-          label="Teléfono"
-          value={phone}
-          onChangeText={(v) => setPhone(normalizePhone(v))}
-          keyboardType="phone-pad"
-          maxLength={10}
-          placeholder="771 000 0000"
-        />
-        {!!message && <FormMessage type={message.type}>{message.text}</FormMessage>}
-        <BrandButton
-          title="Guardar cambios"
-          icon={{ ios: 'checkmark', android: 'check', web: 'check' }}
-          onPress={savePhone}
-          loading={saving}
-          disabled={!account || phone === account.phone}
-        />
+        {account ? (
+          <PhoneChange current={account.phone || null} onChanged={reload} />
+        ) : (
+          <TextField label="Teléfono" value="" placeholder="Cargando…" editable={false} />
+        )}
       </FormCard>
 
       <FormCard accent="green-orange">

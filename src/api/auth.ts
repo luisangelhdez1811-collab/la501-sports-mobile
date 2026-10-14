@@ -2,6 +2,8 @@ import { ApiError, request } from './client';
 import { asHttpsUrl, asId, asNumber, asObject, asString, pick, unwrap, type Json } from './parse';
 import { clearToken, saveToken } from './token-storage';
 
+import { normalizePhone } from '@/utils/validation';
+
 export type Role = 'cliente' | 'mesero' | 'admin';
 
 export type User = {
@@ -133,15 +135,27 @@ export async function me(signal?: AbortSignal) {
   return toUser(pick(body, 'user') ?? body);
 }
 
-export async function forgotPassword(email: string) {
+/** How a phone code is delivered: text message, or an automated call that reads it out. */
+export type CodeChannel = 'sms' | 'llamada';
+
+/** Where a password-reset code goes: the email, or the phone (by SMS or call). */
+export type RecoveryTarget = { email: string } | { phone: string };
+
+function recoveryId(target: RecoveryTarget) {
+  return 'email' in target ? { email: target.email.trim().toLowerCase() } : { telefono: normalizePhone(target.phone) };
+}
+
+/** Always succeeds whether or not the account exists, so it can't be used to probe accounts. */
+export async function forgotPassword(target: RecoveryTarget, channel: CodeChannel = 'sms') {
   await request('/app/auth/forgot-password', {
     method: 'POST',
-    body: { email: email.trim().toLowerCase() },
+    body: 'email' in target ? recoveryId(target) : { ...recoveryId(target), canal: channel },
   });
 }
 
+/** Checks the code and sets the new password in one step; the server ends every session. */
 export async function resetPassword(input: {
-  email: string;
+  target: RecoveryTarget;
   code: string;
   password: string;
   passwordConfirmation: string;
@@ -149,7 +163,7 @@ export async function resetPassword(input: {
   await request('/app/auth/reset-password', {
     method: 'POST',
     body: {
-      email: input.email.trim().toLowerCase(),
+      ...recoveryId(input.target),
       code: input.code.trim(),
       password: input.password,
       password_confirmation: input.passwordConfirmation,

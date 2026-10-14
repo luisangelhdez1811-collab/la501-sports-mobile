@@ -14,6 +14,31 @@ type ResourceState<T> = {
   stale: boolean;
 };
 
+// Requests started before their screen opened (see preloadResource), picked up on mount.
+const PRELOAD_MS = 5 * 60 * 1000;
+const preloaded = new Map<string, { promise: Promise<unknown>; at: number }>();
+
+/**
+ * Starts a screen's request early (while the splash is showing), so the screen opens
+ * with the data already there. Use the same key and fetcher as the screen.
+ */
+export function preloadResource<T>(
+  key: string,
+  fetcher: (signal: AbortSignal) => Promise<T>,
+  { persist = false }: { persist?: boolean } = {},
+) {
+  if (preloaded.has(key)) return;
+  const promise = fetcher(new AbortController().signal);
+  promise.then((data) => persist && writeCache(key, data)).catch(() => preloaded.delete(key));
+  preloaded.set(key, { promise, at: Date.now() });
+}
+
+function takePreloaded<T>(key: string) {
+  const entry = preloaded.get(key);
+  preloaded.delete(key);
+  return entry && Date.now() - entry.at < PRELOAD_MS ? (entry.promise as Promise<T>) : null;
+}
+
 type Options<T> = {
   /**
    * Also keep a copy on the device so it shows after a restart without internet.
@@ -58,8 +83,11 @@ export function useCachedResource<T>(
       setState((s) => (s.data === null ? { ...s, data, loading: false } : s));
     });
 
-    fetcher(controller.signal)
+    // The first load reuses the request started during the splash, if there is one.
+    const request = (reloadKey === 0 ? takePreloaded<T>(key) : null) ?? fetcher(controller.signal);
+    request
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (persist) writeCache(key, data);
         setState({ data, loading: false, refreshing: false, error: null, stale: false });
       })

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { getMyOrders, requestOrderOtp, verifyOrderOtp, type OrderSummary } from '@/api/account';
+import type { CodeChannel } from '@/api/auth';
 import { errorMessage } from '@/api/client';
 import { OrdersList } from '@/components/account/orders-list';
 import { BrandButton } from '@/components/brand/brand-button';
@@ -13,10 +14,12 @@ import { FormMessage } from '@/components/brand/form-message';
 import { TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
 import { BrandTitle } from '@/components/brand/typography';
+import { CodeField, isCompleteCode, ResendCode } from '@/components/verification/code-input';
 import { Brand, BrandFonts } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
+import { useCooldown } from '@/hooks/use-cooldown';
 import { isPhone, normalizePhone } from '@/utils/validation';
 
 /** Guests find their orders with the phone used at checkout plus a one-time code. */
@@ -28,13 +31,19 @@ function GuestLookup() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [channel, setChannel] = useState<CodeChannel>('sms');
+  const [notice, setNotice] = useState<string | null>(null);
+  const cooldown = useCooldown();
 
-  const sendCode = async () => {
+  const sendCode = async (via: CodeChannel = 'sms') => {
     if (!isPhone(phone)) return setError('El teléfono debe tener 10 dígitos.');
     setError(null);
+    setNotice(null);
     setSubmitting(true);
     try {
-      await requestOrderOtp(phone);
+      await cooldown.track(() => requestOrderOtp(phone, via));
+      setChannel(via);
+      if (step === 'code') setNotice(via === 'llamada' ? 'Te estamos llamando.' : 'Te enviamos un código nuevo.');
       setStep('code');
     } catch (err) {
       setError(errorMessage(err));
@@ -44,8 +53,9 @@ function GuestLookup() {
   };
 
   const verify = async () => {
-    if (code.trim().length < 4) return setError('Escribe el código que te enviamos.');
+    if (!isCompleteCode(code)) return setError('Escribe el código de 6 dígitos que te enviamos.');
     setError(null);
+    setNotice(null);
     setSubmitting(true);
     try {
       setOrders(await verifyOrderOtp(phone, code));
@@ -86,9 +96,12 @@ function GuestLookup() {
       <Text style={[styles.text, { color: colors.textSecondary }]}>
         {step === 'phone'
           ? 'Escribe el teléfono con el que hiciste tu pedido y te enviaremos un código.'
-          : `Escribe el código que enviamos al ${phone}.`}
+          : channel === 'llamada'
+            ? `Recibirás una llamada al ${phone} que te dirá el código.`
+            : `Escribe el código que enviamos por SMS al ${phone}.`}
       </Text>
       {!!error && <FormMessage type="error">{error}</FormMessage>}
+      {!!notice && <FormMessage type="success">{notice}</FormMessage>}
       {step === 'phone' ? (
         <>
           <TextField
@@ -100,22 +113,23 @@ function GuestLookup() {
             autoComplete="tel"
             maxLength={10}
           />
-          <BrandButton title="Enviar código" onPress={sendCode} loading={submitting} />
+          <BrandButton title="Enviar código por SMS" onPress={() => sendCode()} loading={submitting} />
+          <TextLink prefix="¿Prefieres que te llamemos?" label="Recibir llamada" onPress={() => sendCode('llamada')} />
         </>
       ) : (
         <>
-          <TextField
-            label="Código"
-            placeholder="123456"
-            value={code}
-            onChangeText={(v) => setCode(v.replace(/\s/g, ''))}
-            keyboardType="number-pad"
-            autoComplete="one-time-code"
-            textContentType="oneTimeCode"
-            maxLength={10}
-          />
+          <CodeField value={code} onChange={setCode} />
           <BrandButton title="Ver mis pedidos" onPress={verify} loading={submitting} />
-          <TextLink label="Cambiar teléfono" muted onPress={() => setStep('phone')} />
+          <ResendCode remaining={cooldown.remaining} onResend={sendCode} />
+          <TextLink
+            label="Cambiar teléfono"
+            muted
+            onPress={() => {
+              setStep('phone');
+              setCode('');
+              setNotice(null);
+            }}
+          />
         </>
       )}
       <TextLink

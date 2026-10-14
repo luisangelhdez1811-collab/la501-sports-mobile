@@ -7,13 +7,17 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { getPromotions } from '@/api/catalog';
+import { getRestaurantInfo } from '@/api/info';
 import { NavDrawer } from '@/components/brand/nav-drawer';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { BrandPalettes } from '@/constants/brand';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { BrandThemeProvider, useBrandTheme } from '@/hooks/use-brand-theme';
+import { preloadResource } from '@/hooks/use-cached-resource';
 import { CartProvider } from '@/hooks/use-cart';
 import { DrawerProvider } from '@/hooks/use-drawer';
+import { preloadMenu } from '@/hooks/use-menu';
 import { pruneRetiredCache } from '@/utils/offline-cache';
 
 SplashScreen.preventAutoHideAsync();
@@ -49,6 +53,16 @@ function RootNavigator() {
 
   // Free space used by screens that are no longer saved offline.
   useEffect(() => pruneRetiredCache(), []);
+
+  // While the splash is showing, download what the first screens of this role use, so
+  // they open with fresh data. Admin data is never preloaded: it's fetched on its screen.
+  useEffect(() => {
+    if (status === 'loading' || isAdmin) return;
+    preloadMenu();
+    if (isWaiter) return;
+    preloadResource('promotions', getPromotions);
+    preloadResource('restaurant-info', getRestaurantInfo, { persist: true });
+  }, [status, isAdmin, isWaiter]);
 
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   const navigationTheme = {

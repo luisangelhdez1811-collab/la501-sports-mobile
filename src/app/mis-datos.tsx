@@ -4,8 +4,9 @@ import { useState, type ReactNode } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Modal, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { deleteAccount, getAccount, togglePromoSubscription, updatePhone, updateProfile } from '@/api/account';
+import { deleteAccount, getAccount, togglePromoSubscription, updateProfile } from '@/api/account';
 import { ApiError, errorMessage } from '@/api/client';
+import { PhoneChange } from '@/components/account/phone-change';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormMessage } from '@/components/brand/form-message';
@@ -17,7 +18,7 @@ import { PRIVACY_EMAIL } from '@/content/legal';
 import { useAdminResource } from '@/hooks/use-admin-resource';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { isEmail, isPhone, normalizePhone } from '@/utils/validation';
+import { isEmail } from '@/utils/validation';
 
 type Icon = SymbolViewProps['name'];
 type Message = { type: 'error' | 'success'; text: string } | null;
@@ -105,7 +106,6 @@ export default function MyDataScreen() {
 
   const [name, setName] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
-  const [phone, setPhone] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<Message>(null);
   const [promoOverride, setPromoOverride] = useState<boolean | null>(null);
@@ -122,9 +122,7 @@ export default function MyDataScreen() {
   // Fields show the saved values until the person edits them.
   const nameValue = name ?? user.name;
   const emailValue = email ?? user.email;
-  const phoneValue = phone ?? data?.phone ?? '';
-  const changed =
-    nameValue.trim() !== user.name || emailValue.trim().toLowerCase() !== user.email || phoneValue !== (data?.phone ?? '');
+  const changed = nameValue.trim() !== user.name || emailValue.trim().toLowerCase() !== user.email;
   const promoSubscribed = promoOverride ?? data?.promoSubscribed ?? false;
 
   const download = () => {
@@ -159,18 +157,15 @@ export default function MyDataScreen() {
     const nextEmail = emailValue.trim().toLowerCase();
     if (nextName.length < 3) return setProfileMessage({ type: 'error', text: 'Escribe tu nombre completo.' });
     if (!isEmail(nextEmail)) return setProfileMessage({ type: 'error', text: 'Correo electrónico no válido.' });
-    if (!isPhone(phoneValue)) return setProfileMessage({ type: 'error', text: 'El teléfono debe tener 10 dígitos.' });
 
-    const onlyPhone = nextName === user.name && nextEmail === user.email;
     setSaving(true);
     setProfileMessage(null);
     try {
-      if (onlyPhone) await updatePhone(normalizePhone(phoneValue));
-      else await updateProfile({ name: nextName, email: nextEmail, phone: normalizePhone(phoneValue) });
+      // The phone goes unchanged here; a new one is confirmed by code (PhoneChange below).
+      await updateProfile({ name: nextName, email: nextEmail, phone: data?.phone ?? '' });
       setUser({ ...user, name: nextName, email: nextEmail });
       setName(null);
       setEmail(null);
-      setPhone(null);
       account.reload();
       setProfileMessage({ type: 'success', text: 'Tus datos se actualizaron.' });
     } catch (err) {
@@ -245,16 +240,9 @@ export default function MyDataScreen() {
             autoCapitalize="none"
             autoComplete="email"
           />
-          <TextField
-            label="Teléfono"
-            value={phoneValue}
-            onChangeText={(v) => setPhone(normalizePhone(v))}
-            keyboardType="phone-pad"
-            maxLength={10}
-            placeholder="771 000 0000"
-          />
           {!!profileMessage && <FormMessage type={profileMessage.type}>{profileMessage.text}</FormMessage>}
           <BrandButton title="Guardar correcciones" onPress={saveProfile} loading={saving} disabled={!changed || !data} />
+          {!!data && <PhoneChange current={data.phone || null} onChanged={account.reload} />}
           <BrandButton
             title="Solicitar por correo"
             variant="secondary"
