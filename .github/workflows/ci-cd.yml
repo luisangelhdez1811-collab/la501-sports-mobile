@@ -1,0 +1,238 @@
+# =============================================================================
+#  CI/CD - La 501 Sports App Móvil (Expo / React Native)
+#
+#  - Pruebas:   cada push o Pull Request hacia develop, release o main ejecuta
+#               lint, revisión de tipos (TypeScript) y las pruebas unitarias e
+#               integración con Jest.
+#  - Versión:   en los Pull Request hacia main verifica que la versión de
+#               app.json (expo.version) sea nueva (que el tag no exista).
+#  - Construir: con EAS Build (servidores de Expo):
+#                 release -> APK de prueba (perfil "preview")
+#                 main    -> AAB firmado para Google Play Store (perfil "production")
+#  - Publicar:  en main crea el tag vX.Y.Z y el Release con el .aab adjunto.
+#
+#  Requisito: secreto EXPO_TOKEN en Settings > Secrets and variables > Actions.
+# =============================================================================
+name: CI/CD
+
+on:
+  push:
+    branches: [develop, release, main]
+  pull_request:
+    branches: [develop, release, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Detecta el proyecto, lee la versión y revisa si EAS está configurado
+  # ---------------------------------------------------------------------------
+  verificar:
+    name: Verificar proyecto
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.revisar.outputs.app }}
+      version: ${{ steps.revisar.outputs.version }}
+      eas: ${{ steps.revisar.outputs.eas }}
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Revisar estructura, versión y credenciales
+        id: revisar
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -f package.json ] && [ -f app.json ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+            VERSION="$(jq -r '.expo.version // empty' app.json)"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Proyecto pendiente::Todavía no está el proyecto Expo (package.json y app.json). Se omiten pruebas y compilación."
+            VERSION="0.0.0"
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error file=app.json::expo.version debe tener formato X.Y.Z (ej. 1.0.0). Valor actual: '$VERSION'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Versión de la app: $VERSION"
+
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "eas=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eas=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Falta EXPO_TOKEN::Agrega el secreto EXPO_TOKEN para que el pipeline pueda compilar el APK/AAB con EAS."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # 2. En los Pull Request hacia main: la versión debe ser nueva
+  # ---------------------------------------------------------------------------
+  version:
+    name: Versión
+    needs: verificar
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Comprobar que el tag no exista
+        env:
+          VERSION: ${{ needs.verificar.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
+            echo "::error file=app.json::La versión v${VERSION} ya fue publicada. Sube expo.version en app.json (rama release) antes de fusionar a main."
+            exit 1
+          fi
+          echo "La versión v${VERSION} es nueva. Se publicará al fusionar a main."
+
+  # ---------------------------------------------------------------------------
+  # 3. Lint, tipos y pruebas unitarias / de integración
+  # ---------------------------------------------------------------------------
+  pruebas:
+    name: Pruebas
+    needs: verificar
+    if: needs.verificar.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint (ESLint de Expo)
+        run: npx expo lint
+
+      - name: Revisión de tipos (TypeScript)
+        run: |
+          # expo-env.d.ts lo genera "expo start"; en CI se crea para que tsc conozca los tipos de Expo
+          [ -f expo-env.d.ts ] || echo '/// <reference types="expo/types" />' > expo-env.d.ts
+          npx tsc --noEmit
+
+      - name: Pruebas unitarias y de integración (Jest)
+        run: |
+          if ! node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
+            echo "::error title=Sin pruebas::package.json no tiene el script \"test\". Agrega pruebas con Jest."
+            exit 1
+          fi
+          npm test -- --ci
+
+  # ---------------------------------------------------------------------------
+  # 4. Compilación con EAS (release = APK de prueba, main = AAB para Play Store)
+  # ---------------------------------------------------------------------------
+  construir:
+    name: Construir app (EAS)
+    needs: [verificar, pruebas]
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/release' || github.ref == 'refs/heads/main') &&
+      needs.verificar.outputs.app == 'true' &&
+      needs.verificar.outputs.eas == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      VERSION: ${{ needs.verificar.outputs.version }}
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Configurar Expo y EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar en EAS y esperar el resultado
+        id: eas
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            PERFIL="production"; EXT="aab"; NOMBRE="la501-sports-mobile-v${VERSION}"
+          else
+            PERFIL="preview";    EXT="apk"; NOMBRE="la501-sports-mobile-v${VERSION}-rc"
+          fi
+
+          eas build --platform android --profile "$PERFIL" --non-interactive --json \
+            --message "${GITHUB_REF_NAME} ${GITHUB_SHA::7}" > build.json
+
+          URL="$(jq -r '.[0].artifacts.buildUrl // empty' build.json)"
+          if [ -z "$URL" ]; then
+            echo "::error::EAS no devolvió el archivo compilado. Revisa el build en https://expo.dev"
+            cat build.json
+            exit 1
+          fi
+
+          mkdir -p dist
+          curl -sSfL "$URL" -o "dist/${NOMBRE}.${EXT}"
+          ls -lh dist
+          echo "nombre=${NOMBRE}" >> "$GITHUB_OUTPUT"
+          echo "archivo=dist/${NOMBRE}.${EXT}" >> "$GITHUB_OUTPUT"
+
+      - name: Guardar archivo como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.eas.outputs.nombre }}
+          path: ${{ steps.eas.outputs.archivo }}
+          retention-days: 30
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 5. Tag + Release estable con el .aab (solo main)
+  # ---------------------------------------------------------------------------
+  publicar:
+    name: Publicar versión estable
+    needs: [verificar, construir]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.verificar.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Descargar el .aab
+        uses: actions/download-artifact@v4
+        with:
+          name: la501-sports-mobile-v${{ needs.verificar.outputs.version }}
+          path: dist
+
+      - name: Crear tag y Release v${{ needs.verificar.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
+            echo "::error file=app.json::El tag v${VERSION} ya existe. Sube expo.version en release y vuelve a fusionar a main."
+            exit 1
+          fi
+          gh release create "v${VERSION}" "dist/la501-sports-mobile-v${VERSION}.aab" \
+            --target "${GITHUB_SHA}" \
+            --title "La 501 Sports App v${VERSION}" \
+            --notes "Archivo .aab firmado listo para subir a Google Play Console." \
+            --generate-notes
