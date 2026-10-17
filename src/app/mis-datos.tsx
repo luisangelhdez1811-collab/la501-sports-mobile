@@ -116,7 +116,7 @@ export default function MyDataScreen() {
   if (status === 'guest') return <Redirect href="/login" />;
   if (!user) return null;
   // Customer rights screen: staff exercise theirs with the employer, not in the app.
-  if (user.role !== 'cliente') return <Redirect href="/" />;
+  if (user.role !== 'cliente') return <Redirect href={user.role === 'admin' ? '/admin' : '/mesero'} />;
 
   const data = account.data;
   // Fields show the saved values until the person edits them.

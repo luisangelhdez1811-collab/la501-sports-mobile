@@ -35,7 +35,7 @@ function CardHeader({ icon, title, description }: { icon: SymbolViewProps['name'
 
 export default function SettingsScreen() {
   const { colors } = useBrandTheme();
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -112,14 +112,17 @@ export default function SettingsScreen() {
         <BrandButton title="Guardar contraseña" onPress={savePassword} loading={savingPassword} />
       </FormCard>
 
-      <FormCard>
-        <CardHeader
-          icon={{ ios: 'lock.shield', android: 'shield_person', web: 'shield_person' }}
-          title="Privacidad y promociones"
-          description="Consulta o corrige tus datos, elige si recibes promociones o elimina tu cuenta."
-        />
-        <BrandButton title="Mis datos y privacidad" variant="secondary" onPress={() => router.push('/mis-datos')} />
-      </FormCard>
+      {/* Customer rights screen: staff exercise theirs with the employer, not in the app. */}
+      {user?.role === 'cliente' && (
+        <FormCard>
+          <CardHeader
+            icon={{ ios: 'lock.shield', android: 'shield_person', web: 'shield_person' }}
+            title="Privacidad y promociones"
+            description="Consulta o corrige tus datos, elige si recibes promociones o elimina tu cuenta."
+          />
+          <BrandButton title="Mis datos y privacidad" variant="secondary" onPress={() => router.push('/mis-datos')} />
+        </FormCard>
+      )}
     </BrandScreen>
   );
 }

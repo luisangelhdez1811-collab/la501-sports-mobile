@@ -8,6 +8,7 @@ import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useDrawer } from '@/hooks/use-drawer';
+import { useGuardedSignOut } from '@/hooks/use-guarded-sign-out';
 
 type NavItem = { label: string; href: Href; signedInOnly?: boolean };
 
@@ -26,19 +27,17 @@ const ITEMS: NavItem[] = [
   { label: 'Términos y condiciones', href: '/terminos' },
 ];
 
-// Admin panel sections (the website's admin menu), plus the public pages.
+// Staff only get their work sections: the customer pages (Quiénes somos, Novedades,
+// Mis datos y privacidad) aren't for them.
 const ADMIN_ITEMS: NavItem[] = [
   { label: 'Panel de ventas', href: '/admin' },
   { label: 'Gestión de reservaciones', href: '/admin/reservaciones' },
   { label: 'Bandeja de mensajes', href: '/admin/mensajes' },
   { label: 'Desempeño de meseros', href: '/admin/meseros' },
-  { label: 'Quiénes somos', href: '/quienes-somos' },
-  { label: 'Novedades', href: '/novedades' },
   { label: 'Configuración', href: '/configuracion' },
   { label: 'Aviso de privacidad', href: '/aviso-privacidad' },
 ];
 
-// Waiter sections plus the public pages.
 const WAITER_ITEMS: NavItem[] = [
   { label: 'Mapa de mesas', href: '/mesero' },
   { label: 'Configuración', href: '/configuracion' },
@@ -51,7 +50,8 @@ const ROLE_LABEL = { cliente: 'Cliente', mesero: 'Mesero', admin: 'Administrador
 export function NavDrawer() {
   const { isOpen, close } = useDrawer();
   const { colors } = useBrandTheme();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const signOut = useGuardedSignOut();
   const insets = useSafeAreaInsets();
 
   const go = (href: Href) => {
