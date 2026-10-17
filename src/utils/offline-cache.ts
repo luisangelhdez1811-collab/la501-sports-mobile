@@ -61,8 +61,23 @@ export function deleteCache(...keys: string[]) {
   }
 }
 
+/** Deletes every saved key that starts with `prefix` (e.g. one file per table). */
+export function deleteCacheByPrefix(prefix: string) {
+  if (isWeb) return;
+  const safe = prefix.replace(/[^a-zA-Z0-9_-]/g, '_');
+  try {
+    for (const entry of cacheDir().list()) {
+      if (entry instanceof File && entry.name.startsWith(safe)) entry.delete();
+    }
+  } catch {
+    // Best effort.
+  }
+}
+
 /** Keys holding data of the signed-in user; wiped on sign-out. */
-export const USER_CACHE_KEYS = ['session-user'] as const;
+export const USER_CACHE_KEYS = ['session-user', 'waiter-tables'] as const;
+/** Same, for keys with one file per item (e.g. each table's orders). */
+export const USER_CACHE_PREFIXES = ['waiter-table-'] as const;
 
 // Data no longer saved this way; remove old copies.
 const RETIRED_KEYS = ['promotions', 'news', 'account', 'my-orders'];

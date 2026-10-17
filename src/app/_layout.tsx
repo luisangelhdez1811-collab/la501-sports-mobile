@@ -11,6 +11,7 @@ import { getPromotions } from '@/api/catalog';
 import { getRestaurantInfo } from '@/api/info';
 import { NavDrawer } from '@/components/brand/nav-drawer';
 import { SplashOverlay } from '@/components/splash-overlay';
+import { OutboxSync } from '@/components/waiter/outbox-sync';
 import { BrandPalettes } from '@/constants/brand';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { BrandThemeProvider, useBrandTheme } from '@/hooks/use-brand-theme';
@@ -101,6 +102,8 @@ function RootNavigator() {
             </Stack.Protected>
           </Stack>
           <NavDrawer />
+          {/* Sends the waiter's orders and charges saved without a connection. */}
+          {isWaiter && <OutboxSync />}
         </>
       )}
       {/* Rendered last so it sits above the native tabs. */}

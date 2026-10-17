@@ -4,13 +4,23 @@ import * as authApi from '@/api/auth';
 import type { RegisterInput, User } from '@/api/auth';
 import { ApiError, onSessionExpired } from '@/api/client';
 import { hasToken } from '@/api/token-storage';
-import { deleteCache, readCache, USER_CACHE_KEYS, writeCache } from '@/utils/offline-cache';
+import {
+  deleteCache,
+  deleteCacheByPrefix,
+  readCache,
+  USER_CACHE_KEYS,
+  USER_CACHE_PREFIXES,
+  writeCache,
+} from '@/utils/offline-cache';
 
 const SESSION_USER_KEY = 'session-user';
 
-// Profile only (name, email, role, points): the token itself stays in SecureStore.
+// Profile (name, email, role, points) and the waiter's saved tables. The token itself
+// stays in SecureStore. Orders and charges not sent yet are never deleted here: the
+// waiter can't sign out while there are any (see waiter-outbox).
 function forgetUserData() {
   deleteCache(...USER_CACHE_KEYS);
+  USER_CACHE_PREFIXES.forEach(deleteCacheByPrefix);
 }
 
 type AuthStatus = 'loading' | 'guest' | 'authenticated';
