@@ -1,0 +1,16 @@
+# CP-01: la app abre y muestra el menú para pedir (sin iniciar sesión).
+appId: com.la501.sports
+name: CP-01 Abrir la app y ver el menú
+tags:
+  - cliente
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Arma tu"
+    timeout: 45000
+- assertVisible: "pedido"
+- assertVisible: ".*Hamburguesas.*"
+- assertVisible: "Pedir"
+- assertVisible: "Cuenta"
+- takeScreenshot: CP-01-menu

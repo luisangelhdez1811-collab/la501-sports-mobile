@@ -79,7 +79,7 @@ Archivo: `.github/workflows/ci-cd.yml`
 | Push / merge a `release` | EAS Build perfil `preview` → **APK** de prueba |
 | Push / merge a `main` | EAS Build perfil `production` → **AAB** firmado + tag + Release |
 
-Pruebas: `__tests__/unit` (validaciones, parseo, horarios) y `__tests__/integration` (cliente de API, inicio de sesión y almacenamiento seguro con `fetch` simulado).
+Pruebas en `test/`: `modelos` (reglas del dominio y parseo), `casos-de-uso` (flujos con la API simulada), `controladores` (ViewModels) y `patrones` (Singleton, Factory, Repository, Observer). Arquitectura: [docs/arquitectura.md](docs/arquitectura.md).
 
 ### Configuración única (dueño del repositorio)
 
