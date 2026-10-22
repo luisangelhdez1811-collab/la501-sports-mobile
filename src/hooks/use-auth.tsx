@@ -3,7 +3,7 @@ import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 import * as authApi from '@/api/auth';
 import type { RegisterInput, User } from '@/api/auth';
 import { ApiError, onSessionExpired } from '@/api/client';
-import { getToken, hasToken, saveToken } from '@/api/token-storage';
+import { hasToken, persistSession } from '@/api/token-storage';
 import {
   deleteCache,
   deleteCacheByPrefix,
@@ -93,11 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The waiter's session is always kept: reopening the app without internet must still
     // show the tables and the saved orders (it holds no payment data).
     const keep = remember || signedIn.role === 'mesero';
-    if (keep && !remember) {
-      const token = await getToken();
-      // Best effort: if the phone can't store it, the session still works until closed.
-      if (token) await saveToken(token).catch(() => {});
-    }
+    // Best effort: if the phone can't store it, the session still works until closed.
+    if (keep && !remember) await persistSession().catch(() => {});
     forgetUserData();
     // "Mantener sesión iniciada" off: the profile isn't kept for the next launch.
     if (keep) writeCache(SESSION_USER_KEY, signedIn);
