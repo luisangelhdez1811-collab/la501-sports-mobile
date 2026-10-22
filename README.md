@@ -48,23 +48,49 @@ git push -u origin feature/mi-funcionalidad
 Después: el compañero revisa y aprueba → con el check en verde → **Merge pull request** → borrar la rama.
 
 Formato de commits: `feat`, `fix`, `refactor`, `style`, `test`, `docs`, `chore`, `ci` + `: descripción en minúsculas`.
+release-please calcula la versión y el CHANGELOG a partir de estos mensajes (sección 3).
+
+**git-flow / GitKraken (opcional)**: las ramas `feature/*` también se pueden crear con
+[git-flow](https://github.com/petervanderdoes/gitflow-avh) (`git flow init -d`, `git flow feature start mi-funcionalidad`,
+`git flow feature publish mi-funcionalidad`) o con **Git Flow → Start Feature** en GitKraken. Solo para features: no usar
+*feature finish* ni *release start/finish*, porque intentan empujar directo a `develop`/`main`, que están protegidas.
+Todo llega a `develop` y `main` por Pull Request.
 
 ---
 
 ## 3. Publicar una versión
 
-1. PR **develop → release** y fusionar → el pipeline compila un **APK de prueba** (*Actions → Artifacts*) para instalar en el celular.
-2. En `release`, subir `expo.version` en `app.json` (ej. `1.1.0`) y actualizar `CHANGELOG.md`:
-   ```bash
-   git switch release && git pull origin release
-   git commit -am "chore: preparar versión 1.1.0"
-   git push origin release
-   ```
-3. PR **release → main** (el check **Versión** valida que el número sea nuevo).
-4. Al fusionar, el pipeline crea el tag `v1.1.0` y el **Release** con el `.aab` firmado, listo para Google Play Console.
-5. PR **release → develop** para sincronizar.
+Automatizado con [**release-please**](https://github.com/googleapis/release-please) (Google), **EAS Build** y
+**EAS Submit** (Expo). La versión, el `CHANGELOG.md`, el tag y el Release **no se editan a mano**.
+
+```
+develop ──PR──► release ──(release-please abre su PR de versión)──► release ──PR──► main
+                                package.json + app.json + CHANGELOG   tag + Release   AAB + Google Play + PR release → develop
+```
+
+1. **PR develop → release** con lo que se quiere publicar. Al fusionarlo, EAS compila el **APK de prueba**
+   (*Actions → Artifacts*) para instalar en el celular.
+2. **release-please abre (o actualiza) el PR "chore: preparar versión X.Y.Z"** hacia `release`: sube la versión en
+   `package.json` y `app.json` (`feat` → MENOR, `fix` → PARCHE, `feat!` o `BREAKING CHANGE` → MAYOR; la primera
+   versión es la 1.0.0) y agrega la sección al CHANGELOG. Revisarlo y **fusionarlo**: se crean el tag `vX.Y.Z` y el
+   Release, y se abre solo el **PR release → main**.
+3. **Aprobar el PR release → main** (checks **Pruebas** y **Versión** en verde). Al fusionarlo, EAS compila el
+   `.aab` firmado, se adjunta al Release, se envía a Google Play si `PLAY_SUBMIT` está activado, y se abre el
+   **PR release → develop**.
+4. **Aprobar el PR release → develop**.
 
 El `versionCode` de Android lo incrementa EAS automáticamente (`autoIncrement` en `eas.json`).
+
+**Requisitos**
+- Secreto `RELEASE_TOKEN`: token *fine-grained* (Settings personales → Developer settings) con acceso a este
+  repositorio y permisos **Contents** y **Pull requests** en lectura y escritura. Según la documentación de
+  release-please, lo creado con el token por defecto de Actions no dispara el pipeline ni las pruebas.
+- **Envío a Google Play (EAS Submit)**, cuando exista la app en Play Console:
+  1. Crear la cuenta de servicio de Google y cargar su llave JSON en [expo.dev](https://expo.dev) → proyecto →
+     *Credentials → Android → Google Service Account Key* (así no se guarda en GitHub).
+  2. En GitHub: *Settings → Secrets and variables → Actions → Variables* → `PLAY_SUBMIT` = `true`.
+  3. Se envía a la **prueba cerrada** (`track: alpha`) en **borrador** (`releaseStatus: draft`), según
+     `eas.json`. Cuando la app ya esté publicada, cambiar `releaseStatus` a `completed`.
 
 ---
 
@@ -75,9 +101,9 @@ Archivo: `.github/workflows/ci-cd.yml`
 | Evento | Qué hace |
 |---|---|
 | Push / PR a `develop`, `release`, `main` | `npm ci` → `expo lint` → `tsc --noEmit` → `npm test` (Jest) |
-| PR a `main` | Además verifica que la versión sea nueva |
-| Push / merge a `release` | EAS Build perfil `preview` → **APK** de prueba |
-| Push / merge a `main` | EAS Build perfil `production` → **AAB** firmado + tag + Release |
+| PR a `main` | Además verifica que release-please haya preparado la versión y que sea nueva para `main` |
+| Push / merge a `release` | EAS Build perfil `preview` → **APK** de prueba · **release-please** (`release-please.yml`): PR de versión; al fusionarlo, tag + Release + PR release → main |
+| Push / merge a `main` | EAS Build perfil `production` → **AAB** firmado → EAS Submit (opcional) → .aab al Release → PR release → develop |
 
 Pruebas en `test/`: `modelos` (reglas del dominio y parseo), `casos-de-uso` (flujos con la API simulada), `controladores` (ViewModels) y `patrones` (Singleton, Factory, Repository, Observer). Arquitectura: [docs/arquitectura.md](docs/arquitectura.md).
 
