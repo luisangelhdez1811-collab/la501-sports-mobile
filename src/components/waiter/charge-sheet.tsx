@@ -49,20 +49,28 @@ function separateBills(orders: TableOrder[]): Bill[] {
   return orders.map((order) => ({ label: order.label, orders: [order], total: order.total }));
 }
 
+/** Identifies one diner's order across reloads (phone reference, else server id). */
+export const orderKey = (order: Pick<TableOrder, 'id' | 'ref'>) => order.ref ?? String(order.id);
+
 type ChargeSheetProps = {
   table: { id: number; number: string; total: number; kitchenPending: boolean };
+  /** Charge only this diner's order (see `orderKey`) instead of asking. */
+  only?: string;
   onClose: () => void;
-  /** After the last bill; `summary` says what happened (charged, or flagged for the admin). */
-  onDone: (summary: string) => void;
+  /**
+   * After the last bill; `summary` says what happened (charged, or flagged for the admin)
+   * and `wholeTable` whether nothing of the table is left open.
+   */
+  onDone: (summary: string, wholeTable: boolean) => void;
 };
 
 /**
- * "Cobrar mesa": when the table has several diners, first ask whether they pay together or
- * separately. Separately goes through each diner's order in the order it was taken; closing
+ * "Cobrar mesa": when the table has several diners, first ask whether they pay together,
+ * separately (each diner's order in the order it was taken) or just one of them. Closing
  * the sheet halfway leaves the rest open. Charging needs a connection: the server confirms
  * every charge before the table is freed (orders, instead, can be taken offline).
  */
-export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
+export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
   const { entries } = useOutbox();
@@ -77,9 +85,11 @@ export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
     ? openOrders(detail.data, table.id, entries)
     : // No saved copy of this table yet: one bill, as the map shows it (charged once online).
       [{ id: null, ref: null, label: 'Mesa completa', total: table.total, kitchenPending: table.kitchenPending, items: [] }];
-  const choosing = bills === null && orders.length > 1;
-  const activeBills = bills ?? togetherBill(orders);
+  const single = only ? orders.filter((o) => orderKey(o) === only) : null;
+  const choosing = bills === null && !single && orders.length > 1;
+  const activeBills = bills ?? (single ? separateBills(single) : togetherBill(orders));
   const bill = activeBills[step];
+  const charged = activeBills.reduce((n, b) => n + b.orders.length, 0);
 
   const finishBill = (outcome: string) => {
     const next = [...outcomes, outcome];
@@ -87,7 +97,7 @@ export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
       setOutcomes(next);
       setStep(step + 1);
     } else {
-      onDone(next.join('\n'));
+      onDone(next.join('\n'), charged >= orders.length);
     }
   };
 
@@ -119,6 +129,7 @@ export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
               orders={orders}
               onTogether={() => setBills(togetherBill(orders))}
               onSeparate={() => setBills(separateBills(orders))}
+              onOne={(order) => setBills(separateBills([order]))}
             />
           ) : bill ? (
             <BillPayment
@@ -141,10 +152,12 @@ function ChooseMode({
   orders,
   onTogether,
   onSeparate,
+  onOne,
 }: {
   orders: TableOrder[];
   onTogether: () => void;
   onSeparate: () => void;
+  onOne: (order: TableOrder) => void;
 }) {
   const { colors } = useBrandTheme();
   return (
@@ -162,15 +175,27 @@ function ChooseMode({
         subtitle="Cada quien paga lo suyo, en el orden en que se tomaron los pedidos."
         onPress={onSeparate}
       />
+      <Text style={[styles.section, { color: colors.textSecondary }]}>O cobra solo a una persona</Text>
       <View style={[styles.list, { borderColor: colors.border }]}>
         {orders.map((order, i) => (
-          <View key={order.ref ?? order.id ?? i} style={[styles.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+          <Pressable
+            key={orderKey(order)}
+            accessibilityRole="button"
+            accessibilityLabel={`Cobrar solo a ${order.label}, ${formatMoney(order.total)}`}
+            onPress={() => onOne(order)}
+            style={({ pressed }) => [
+              styles.listRow,
+              styles.pickRow,
+              i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+              pressed && { backgroundColor: `${Brand.green}1A` },
+            ]}>
             <Text style={[styles.listLabel, { color: colors.text }]}>
               {i + 1}. {order.label}
               {order.unsent ? '  ·  sin enviar' : ''}
             </Text>
             <Text style={[styles.listValue, { color: colors.text }]}>{formatMoney(order.total)}</Text>
-          </View>
+            <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={colors.textSecondary} />
+          </Pressable>
         ))}
       </View>
     </ScrollView>
@@ -230,7 +255,7 @@ function BillPayment({
   // never charges twice.
   const [ref] = useState(() => newRef('cobro'));
   const [rows, setRows] = useState<Row[]>(() => [{ key: 0, method: 'efectivo', amount: bill.total.toFixed(2) }]);
-  const unsent = bill.orders.some((o) => o.id === null);
+  const unsent = bill.orders.some((o) => o.unsent);
   const [forced, setForced] = useState(() => !unsent && bill.orders.some((o) => o.kitchenPending));
   const [reason, setReason] = useState('');
   const [password, setPassword] = useState('');
@@ -557,6 +582,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     paddingVertical: 10,
+  },
+  pickRow: {
+    minHeight: 48,
   },
   listLabel: {
     flex: 1,

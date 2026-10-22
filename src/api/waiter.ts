@@ -183,10 +183,10 @@ export async function sendToKitchen(tableId: number, input: KitchenOrderInput) {
   assertRegistered(data);
 }
 
+// The restaurant doesn't take bank transfers.
 export const PAYMENT_METHODS = [
   { value: 'efectivo', label: 'Efectivo' },
   { value: 'tarjeta', label: 'Tarjeta' },
-  { value: 'transferencia', label: 'Transferencia' },
 ] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
 export type Payment = { method: PaymentMethod; amount: number };

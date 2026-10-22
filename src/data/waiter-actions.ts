@@ -59,12 +59,14 @@ export async function placeKitchenOrder(
 export async function chargeOrders(input: {
   tableId: number;
   ref: string;
-  orders: Pick<TableOrder, 'id'>[];
+  orders: Pick<TableOrder, 'id' | 'unsent'>[];
   payments: Payment[];
   forced?: { reason: string; password: string };
 }): Promise<ChargeStatus> {
+  if (input.orders.some((o) => o.unsent)) throw new ApiError(CHARGE_NEEDS_SENT_ORDERS, 0);
+  // No ids means the whole table: a server without per-diner orders sends the table as
+  // one order without an id.
   const orderIds = input.orders.map((o) => o.id).filter((id): id is number => id !== null);
-  if (orderIds.length < input.orders.length) throw new ApiError(CHARGE_NEEDS_SENT_ORDERS, 0);
 
   try {
     return await chargeTable(input.tableId, {

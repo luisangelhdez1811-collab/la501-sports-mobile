@@ -124,8 +124,20 @@ describe('cobros (solo con internet)', () => {
   it('no cobra pedidos que todavía están guardados en el teléfono', async () => {
     const { chargeOrders, CHARGE_NEEDS_SENT_ORDERS } = cargar();
 
-    await expect(chargeOrders({ ...cobro, orders: [{ id: 21 }, { id: null }] })).rejects.toThrow(CHARGE_NEEDS_SENT_ORDERS);
+    await expect(chargeOrders({ ...cobro, orders: [{ id: 21 }, { id: null, unsent: true }] })).rejects.toThrow(
+      CHARGE_NEEDS_SENT_ORDERS,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('con un servidor sin pedidos por persona, cobra la mesa completa', async () => {
+    const { chargeOrders } = cargar();
+    fetchMock.mockResolvedValueOnce(respuesta(201, { success: true, data: { status: 'applied' } }));
+
+    // El servidor anterior manda la mesa como un solo pedido sin id.
+    await chargeOrders({ ...cobro, orders: [{ id: null }] });
+
+    expect(cuerpo(0).order_ids).toEqual([]);
   });
 });
 

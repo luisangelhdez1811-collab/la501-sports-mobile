@@ -1,17 +1,17 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { getTable } from '@/api/waiter';
+import { getTable, type TableOrder } from '@/api/waiter';
 import { formatMoney } from '@/components/account/orders-list';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
-import { ChargeSheet } from '@/components/waiter/charge-sheet';
+import { ChargeSheet, orderKey } from '@/components/waiter/charge-sheet';
 import { OutboxBanner } from '@/components/waiter/outbox-sync';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { placeKitchenOrder } from '@/data/waiter-actions';
@@ -24,23 +24,36 @@ import { useIsOffline } from '@/hooks/use-connectivity';
 import { useMenu } from '@/hooks/use-menu';
 import type { Ingredient, Product } from '@/types/product';
 import { menuImage } from '@/utils/image-source';
+import { searchProducts } from '@/utils/menu-search';
 import { nextDinerLabel, openOrders } from '@/utils/waiter-tables';
 
-type Line = { product: Product; quantity: number; excluded: Ingredient[]; notes: string };
+/** One dish in the current diner's order; the same dish can appear with different choices. */
+type Line = { id: number; product: Product; quantity: number; excluded: Ingredient[]; notes: string };
+type Mode = 'pedido' | 'cuentas';
 
 const MAX_QUANTITY = 50;
 const FREQUENT = '__frecuentes';
 const FREQUENT_COUNT = 24;
 const AMBER = '#F59E0B';
-const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const ingredientIds = (list: Ingredient[]) => list.map((i) => String(i.id ?? i.name)).sort().join('|');
+const sameChoice = (line: Line, product: Product, excluded: Ingredient[], notes: string) =>
+  line.product.key === product.key && line.notes.trim() === notes.trim() && ingredientIds(line.excluded) === ingredientIds(excluded);
+
+const customization = (excluded: Ingredient[], notes: string) =>
+  [excluded.length > 0 ? `Sin ${excluded.map((i) => i.name.toLowerCase()).join(', ')}` : '', notes.trim()]
+    .filter(Boolean)
+    .join(' · ');
 
 /**
- * "Tomar pedido", one diner at a time: the waiter asks the first person, picks their dishes
- * and sends them to the kitchen; the screen moves on to the next person on its own. Each
- * diner becomes a separate order, so the table can later pay together or separately.
- * Works offline: the menu is saved on the phone and orders wait in the outbox.
+ * A table, in two tabs. "Tomar pedido", one diner at a time: tapping a dish opens its card
+ * (description, ingredients, comments, how many) like the customer sees it; the order is
+ * sent to the kitchen and the screen moves on to the next person. "Cuentas": what each
+ * person ordered and their total, to charge one of them or the whole table.
+ * Orders work offline (the menu is saved on the phone and orders wait in the outbox);
+ * charging needs internet.
  */
-export default function TakeOrderScreen() {
+export default function TableScreen() {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
   const offline = useIsOffline();
@@ -55,18 +68,21 @@ export default function TakeOrderScreen() {
   useFavoritesVersion();
   useEffect(() => loadFavorites(), []);
 
+  const [mode, setMode] = useState<Mode>('pedido');
   const [category, setCategory] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [lines, setLines] = useState<Record<string, Line>>({});
+  const [lines, setLines] = useState<Line[]>([]);
+  const nextLineId = useRef(1);
+  const [picking, setPicking] = useState<{ product: Product; line?: Line } | null>(null);
+  const [showLines, setShowLines] = useState(true);
   const [label, setLabel] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
-  const [editing, setEditing] = useState<Product | null>(null);
   const [sending, setSending] = useState(false);
   const [lastSent, setLastSent] = useState<string | null>(null);
-  const [showTable, setShowTable] = useState(false);
-  const [charging, setCharging] = useState(false);
-
   const [sentLabels, setSentLabels] = useState<string[]>([]);
+  // `only`: one diner's order (see orderKey); absent: the whole table (asks how they pay).
+  const [charging, setCharging] = useState<{ only?: string } | null>(null);
+  const [barHeight, setBarHeight] = useState(140);
 
   const orders = openOrders(detail.data, tableId, entries);
   const tableTotal = orders.reduce((sum, o) => sum + o.total, 0);
@@ -79,29 +95,37 @@ export default function TakeOrderScreen() {
     .map((id) => allProducts.find((p) => p.id === id))
     .filter((p): p is Product => !!p && p.available);
   const activeCategory = category ?? (frequent.length > 0 ? FREQUENT : (categories[0]?.name ?? null));
-  const search = normalize(query.trim());
-  const products = search
-    ? allProducts.filter((p) => normalize(`${p.name} ${p.description} ${p.category}`).includes(search))
+  const searching = query.trim().length > 0;
+  const products = searching
+    ? searchProducts(allProducts, query)
     : activeCategory === FREQUENT
       ? frequent
       : (categories.find((c) => c.name === activeCategory)?.products ?? []);
 
-  const chosen = Object.values(lines).filter((line) => line.quantity > 0);
-  const count = chosen.reduce((sum, line) => sum + line.quantity, 0);
-  const total = chosen.reduce((sum, line) => sum + line.quantity * line.product.price, 0);
+  const count = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const total = lines.reduce((sum, line) => sum + line.quantity * line.product.price, 0);
+  const chosen = (product: Product) =>
+    lines.filter((line) => line.product.key === product.key).reduce((sum, line) => sum + line.quantity, 0);
 
-  const setQuantity = (product: Product, quantity: number) => {
+  const pick = (product: Product, excluded: Ingredient[], notes: string, quantity: number) => {
     setLastSent(null);
-    setLines((current) => ({
-      ...current,
-      [product.key]: {
-        product,
-        excluded: current[product.key]?.excluded ?? [],
-        notes: current[product.key]?.notes ?? '',
-        quantity: Math.max(0, Math.min(quantity, MAX_QUANTITY)),
-      },
-    }));
+    setShowLines(true);
+    const editing = picking?.line;
+    if (editing) {
+      setLines((current) => current.map((l) => (l.id === editing.id ? { ...l, excluded, notes, quantity } : l)));
+      return;
+    }
+    const id = nextLineId.current++;
+    setLines((current) => {
+      const same = current.find((l) => sameChoice(l, product, excluded, notes));
+      if (same) {
+        return current.map((l) => (l === same ? { ...l, quantity: Math.min(MAX_QUANTITY, l.quantity + quantity) } : l));
+      }
+      return [...current, { id, product, quantity, excluded, notes }];
+    });
   };
+
+  const removeLine = (id: number) => setLines((current) => current.filter((l) => l.id !== id));
 
   const leave = () => {
     if (count === 0) return router.back();
@@ -112,7 +136,7 @@ export default function TakeOrderScreen() {
   };
 
   const send = async () => {
-    const items = chosen.filter((line) => line.product.id !== null);
+    const items = lines.filter((line) => line.product.id !== null);
     if (items.length === 0 || !user) return;
     setSending(true);
     try {
@@ -133,7 +157,7 @@ export default function TakeOrderScreen() {
       });
       recordOrdered(items.flatMap((line) => Array<number>(line.quantity).fill(line.product.id!)));
       setSentLabels((current) => [...current, diner]);
-      setLines({});
+      setLines([]);
       setLabel(null);
       setQuery('');
       setLastSent(
@@ -149,11 +173,8 @@ export default function TakeOrderScreen() {
     }
   };
 
-  const editingLine = editing ? lines[editing.key] : undefined;
-
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      {/* Header: table, what it already has, and the diner being served now. */}
       <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.header, borderBottomColor: colors.border }]}>
         <View style={styles.headerRow}>
           <Pressable
@@ -163,206 +184,281 @@ export default function TakeOrderScreen() {
             style={[styles.back, { borderColor: colors.border, backgroundColor: colors.surface }]}>
             <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={22} tintColor={colors.text} />
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityHint="Muestra lo que ya pidió la mesa"
-            onPress={() => setShowTable((v) => !v)}
-            style={styles.headerText}>
+          <View style={styles.headerText}>
             <Text style={[styles.tableTitle, { color: colors.text }]}>Mesa {tableNumber}</Text>
             <Text style={[styles.tableSubtitle, { color: colors.textSecondary }]}>
               {orders.length > 0
-                ? `${orders.length} ${orders.length === 1 ? 'cuenta' : 'cuentas'} · ${formatMoney(tableTotal)} ${showTable ? '▲' : '▼'}`
+                ? `${orders.length} ${orders.length === 1 ? 'cuenta' : 'cuentas'} · ${formatMoney(tableTotal)}`
                 : 'Mesa nueva'}
             </Text>
-          </Pressable>
-          {orders.length > 0 && count === 0 && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityHint={offline ? 'Para cobrar necesitas internet' : undefined}
-              onPress={() => setCharging(true)}
-              style={({ pressed }) => [styles.chargeButton, { opacity: offline ? 0.5 : pressed ? 0.85 : 1 }]}>
-              <Text style={styles.chargeText}>Cobrar</Text>
-            </Pressable>
-          )}
+          </View>
         </View>
 
-        <View style={[styles.diner, { borderColor: `${Brand.blue}66`, backgroundColor: `${Brand.blue}14` }]}>
-          <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={18} tintColor={Brand.blue} />
-          {editingLabel ? (
-            <TextInput
-              autoFocus
-              value={label ?? diner}
-              onChangeText={setLabel}
-              onBlur={() => setEditingLabel(false)}
-              onSubmitEditing={() => setEditingLabel(false)}
-              maxLength={40}
-              returnKeyType="done"
-              selectTextOnFocus
-              selectionColor={Brand.orange}
-              style={[styles.dinerInput, { color: colors.text }]}
-              accessibilityLabel="Nombre del comensal"
-            />
-          ) : (
-            <Pressable accessibilityRole="button" accessibilityHint="Cambia el nombre del comensal" onPress={() => setEditingLabel(true)} style={styles.dinerName}>
-              <Text style={[styles.dinerText, { color: colors.text }]} numberOfLines={1}>
-                Pidiendo: <Text style={styles.dinerStrong}>{diner}</Text>
-              </Text>
-              <SymbolView name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={14} tintColor={colors.textSecondary} />
-            </Pressable>
-          )}
+        <View style={[styles.tabs, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {(
+            [
+              { value: 'pedido', label: 'Tomar pedido' },
+              { value: 'cuentas', label: orders.length > 0 ? `Cuentas · ${orders.length}` : 'Cuentas' },
+            ] as const
+          ).map((tab) => {
+            const active = tab.value === mode;
+            return (
+              <Pressable
+                key={tab.value}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                onPress={() => setMode(tab.value)}
+                style={[styles.tab, active && { backgroundColor: Brand.blue }]}>
+                <Text style={[styles.tabText, { color: active ? Brand.white : colors.textSecondary }]}>{tab.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} tintColor={colors.textSecondary} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Buscar platillo o bebida…"
-            placeholderTextColor={colors.textSecondary}
-            selectionColor={Brand.orange}
-            autoCorrect={false}
-            returnKeyType="search"
-            style={[styles.searchInput, { color: colors.text }]}
-            accessibilityLabel="Buscar platillo o bebida"
-          />
-          {!!query && (
-            <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" hitSlop={8} onPress={() => setQuery('')}>
-              <SymbolView name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }} size={20} tintColor={colors.textSecondary} />
-            </Pressable>
-          )}
-        </View>
+        {mode === 'pedido' && (
+          <>
+            <View style={[styles.diner, { borderColor: `${Brand.blue}66`, backgroundColor: `${Brand.blue}14` }]}>
+              <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={18} tintColor={Brand.blue} />
+              {editingLabel ? (
+                <TextInput
+                  autoFocus
+                  value={label ?? diner}
+                  onChangeText={setLabel}
+                  onBlur={() => setEditingLabel(false)}
+                  onSubmitEditing={() => setEditingLabel(false)}
+                  maxLength={40}
+                  returnKeyType="done"
+                  selectTextOnFocus
+                  selectionColor={Brand.orange}
+                  style={[styles.dinerInput, { color: colors.text }]}
+                  accessibilityLabel="Nombre del comensal"
+                />
+              ) : (
+                <Pressable accessibilityRole="button" accessibilityHint="Cambia el nombre del comensal" onPress={() => setEditingLabel(true)} style={styles.dinerName}>
+                  <Text style={[styles.dinerText, { color: colors.text }]} numberOfLines={1}>
+                    Pidiendo: <Text style={styles.dinerStrong}>{diner}</Text>
+                  </Text>
+                  <SymbolView name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={14} tintColor={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} tintColor={colors.textSecondary} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Buscar platillo o bebida…"
+                placeholderTextColor={colors.textSecondary}
+                selectionColor={Brand.orange}
+                autoCorrect={false}
+                returnKeyType="search"
+                style={[styles.searchInput, { color: colors.text }]}
+                accessibilityLabel="Buscar platillo o bebida"
+              />
+              {searching && (
+                <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" hitSlop={8} onPress={() => setQuery('')}>
+                  <SymbolView name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }} size={20} tintColor={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+          </>
+        )}
       </View>
 
-      {!search && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          style={[styles.chipsBar, { borderBottomColor: colors.border }]}
-          contentContainerStyle={styles.chips}>
-          {[...(frequent.length > 0 ? [{ name: FREQUENT, label: '★ Frecuentes' }] : []), ...categories.map((c) => ({ name: c.name, label: c.name }))].map(
-            (chip) => {
-              const active = chip.name === activeCategory;
-              return (
-                <Pressable
-                  key={chip.name}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setCategory(chip.name)}
-                  style={[
-                    styles.chip,
-                    active ? { backgroundColor: Brand.blue, borderColor: Brand.blue } : { backgroundColor: colors.surface, borderColor: colors.border },
-                  ]}>
-                  <Text style={[styles.chipText, { color: active ? Brand.white : colors.text }]}>{chip.label}</Text>
-                </Pressable>
-              );
-            },
+      {mode === 'pedido' ? (
+        <>
+          {!searching && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={[styles.chipsBar, { borderBottomColor: colors.border }]}
+              contentContainerStyle={styles.chips}>
+              {[...(frequent.length > 0 ? [{ name: FREQUENT, label: '★ Frecuentes' }] : []), ...categories.map((c) => ({ name: c.name, label: c.name }))].map(
+                (chip) => {
+                  const active = chip.name === activeCategory;
+                  return (
+                    <Pressable
+                      key={chip.name}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: active }}
+                      onPress={() => setCategory(chip.name)}
+                      style={[
+                        styles.chip,
+                        active ? { backgroundColor: Brand.blue, borderColor: Brand.blue } : { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}>
+                      <Text style={[styles.chipText, { color: active ? Brand.white : colors.text }]}>{chip.label}</Text>
+                    </Pressable>
+                  );
+                },
+              )}
+            </ScrollView>
           )}
-        </ScrollView>
+
+          <FlatList
+            data={products}
+            keyExtractor={(product) => product.key}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={[styles.list, { paddingBottom: barHeight + 16 }]}
+            ListHeaderComponent={
+              <View style={styles.listHeader}>
+                <OfflineBanner />
+                <OutboxBanner tableId={tableId} />
+                {!!lastSent && (
+                  <View style={[styles.sent, { borderColor: `${Brand.green}66`, backgroundColor: `${Brand.green}14` }]}>
+                    <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={18} tintColor={Brand.greenLight} />
+                    <Text style={[styles.sentText, { color: colors.text }]}>
+                      {lastSent} Sigue con <Text style={styles.dinerStrong}>{diner}</Text> o revisa las cuentas.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            }
+            ListEmptyComponent={
+              <Text style={[styles.empty, { color: colors.textSecondary }]}>
+                {searching ? 'No hay platillos con ese nombre.' : 'Esta categoría no tiene platillos.'}
+              </Text>
+            }
+            renderItem={({ item }) => <ProductRow product={item} quantity={chosen(item)} onPress={() => setPicking({ product: item })} />}
+          />
+
+          <View
+            onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+            style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+            {count > 0 && showLines && (
+              <ScrollView style={styles.lines} contentContainerStyle={styles.linesContent}>
+                {lines.map((line) => (
+                  <Pressable
+                    key={line.id}
+                    accessibilityRole="button"
+                    accessibilityHint="Cambia ingredientes, comentarios o cantidad"
+                    onPress={() => setPicking({ product: line.product, line })}
+                    style={({ pressed }) => [styles.line, { borderColor: colors.border, backgroundColor: pressed ? colors.background : 'transparent' }]}>
+                    <Text style={styles.lineQty}>{line.quantity}×</Text>
+                    <View style={styles.lineText}>
+                      <Text style={[styles.lineName, { color: colors.text }]} numberOfLines={1}>
+                        {line.product.name}
+                      </Text>
+                      {!!customization(line.excluded, line.notes) && (
+                        <Text style={styles.lineCustom} numberOfLines={2}>
+                          {customization(line.excluded, line.notes)}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={[styles.linePrice, { color: colors.text }]}>{formatMoney(line.product.price * line.quantity)}</Text>
+                    <SymbolView name={{ ios: 'square.and.pencil', android: 'edit_note', web: 'edit_note' }} size={18} tintColor={colors.textSecondary} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+            {offline && count > 0 && (
+              <Text style={styles.offlineNote}>
+                Sin conexión: la cocina no recibirá este pedido hasta que vuelva el internet. Avísale en persona.
+              </Text>
+            )}
+            <View style={styles.bottomRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityHint={count > 0 ? (showLines ? 'Oculta los platillos elegidos' : 'Muestra los platillos elegidos') : undefined}
+                disabled={count === 0}
+                onPress={() => setShowLines((v) => !v)}
+                style={styles.bottomTotal}>
+                <Text style={[styles.bottomLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {diner} · {count} {count === 1 ? 'platillo' : 'platillos'}
+                  {count > 0 ? (showLines ? '  ▼' : '  ▲') : ''}
+                </Text>
+                <Text style={styles.bottomValue}>{formatMoney(total)}</Text>
+              </Pressable>
+              {count > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: sending, busy: sending }}
+                  disabled={sending}
+                  onPress={send}
+                  style={({ pressed }) => [styles.send, { backgroundColor: offline ? AMBER : Brand.blue, opacity: pressed || sending ? 0.85 : 1 }]}>
+                  <SymbolView
+                    name={offline ? { ios: 'tray.and.arrow.down', android: 'save', web: 'save' } : { ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }}
+                    size={18}
+                    tintColor={Brand.white}
+                  />
+                  <Text style={styles.sendText}>{sending ? 'Enviando…' : offline ? 'Guardar pedido' : 'Enviar a cocina'}</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => (orders.length > 0 ? setMode('cuentas') : router.back())}
+                  style={({ pressed }) => [styles.send, { backgroundColor: colors.border, opacity: pressed ? 0.85 : 1 }]}>
+                  <Text style={[styles.sendText, { color: colors.text }]}>{orders.length > 0 ? 'Ver cuentas' : 'Terminar'}</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={[styles.list, { paddingBottom: barHeight + 16 }]}>
+            <OfflineBanner stale={detail.stale} onRetry={detail.reload} />
+            <OutboxBanner tableId={tableId} />
+            {orders.length === 0 ? (
+              <Text style={[styles.empty, { color: colors.textSecondary }]}>
+                {detail.data === null && detail.loading ? 'Cargando cuentas…' : 'Esta mesa aún no tiene pedidos.'}
+              </Text>
+            ) : (
+              orders.map((order) => (
+                <AccountCard key={orderKey(order)} order={order} onCharge={() => setCharging({ only: orderKey(order) })} />
+              ))
+            )}
+          </ScrollView>
+
+          <View
+            onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+            style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+            <View style={styles.bottomRow}>
+              <View style={styles.bottomTotal}>
+                <Text style={[styles.bottomLabel, { color: colors.textSecondary }]}>
+                  Total de la mesa · {orders.length} {orders.length === 1 ? 'cuenta' : 'cuentas'}
+                </Text>
+                <Text style={styles.bottomValue}>{formatMoney(tableTotal)}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: orders.length === 0 }}
+                disabled={orders.length === 0}
+                onPress={() => setCharging({})}
+                style={({ pressed }) => [styles.send, { backgroundColor: Brand.green, opacity: orders.length === 0 ? 0.4 : pressed ? 0.85 : 1 }]}>
+                <SymbolView name={{ ios: 'creditcard', android: 'payments', web: 'payments' }} size={18} tintColor={Brand.white} />
+                <Text style={styles.sendText}>Cobrar mesa</Text>
+              </Pressable>
+            </View>
+          </View>
+        </>
       )}
 
-      <FlatList
-        data={products}
-        keyExtractor={(product) => product.key}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 140 }]}
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <OfflineBanner />
-            <OutboxBanner tableId={tableId} />
-            {!!lastSent && (
-              <View style={[styles.sent, { borderColor: `${Brand.green}66`, backgroundColor: `${Brand.green}14` }]}>
-                <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={18} tintColor={Brand.greenLight} />
-                <Text style={[styles.sentText, { color: colors.text }]}>
-                  {lastSent} Sigue con <Text style={styles.dinerStrong}>{diner}</Text> o regresa al mapa.
-                </Text>
-              </View>
-            )}
-            {showTable && <TableOrders orders={orders} />}
-          </View>
-        }
-        ListEmptyComponent={
-          <Text style={[styles.empty, { color: colors.textSecondary }]}>
-            {search ? 'No hay platillos con ese nombre.' : 'Esta categoría no tiene platillos.'}
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <OrderRow
-            product={item}
-            line={lines[item.key]}
-            onChange={(quantity) => setQuantity(item, quantity)}
-            onEdit={() => setEditing(item)}
-          />
-        )}
-      />
-
-      <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
-        {offline && count > 0 && (
-          <Text style={styles.offlineNote}>
-            Sin conexión: la cocina no recibirá este pedido hasta que vuelva el internet. Avísale en persona.
-          </Text>
-        )}
-        <View style={styles.bottomRow}>
-          <View style={styles.bottomTotal}>
-            <Text style={[styles.bottomLabel, { color: colors.textSecondary }]} numberOfLines={1}>
-              {diner} · {count} {count === 1 ? 'platillo' : 'platillos'}
-            </Text>
-            <Text style={styles.bottomValue}>{formatMoney(total)}</Text>
-          </View>
-          {count > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: sending, busy: sending }}
-              disabled={sending}
-              onPress={send}
-              style={({ pressed }) => [styles.send, { backgroundColor: offline ? AMBER : Brand.blue, opacity: pressed || sending ? 0.85 : 1 }]}>
-              <SymbolView
-                name={offline ? { ios: 'tray.and.arrow.down', android: 'save', web: 'save' } : { ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }}
-                size={18}
-                tintColor={Brand.white}
-              />
-              <Text style={styles.sendText}>{sending ? 'Enviando…' : offline ? 'Guardar pedido' : 'Enviar a cocina'}</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              style={({ pressed }) => [styles.send, { backgroundColor: colors.border, opacity: pressed ? 0.85 : 1 }]}>
-              <Text style={[styles.sendText, { color: colors.text }]}>Terminar</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-
       <ProductDetailSheet
-        key={editing?.key ?? 'none'}
-        product={editing}
-        onClose={() => setEditing(null)}
-        initialExcluded={editingLine?.excluded}
-        initialNotes={editingLine?.notes}
-        confirmLabel="Confirmar"
+        key={picking ? `${picking.product.key}-${picking.line?.id ?? 'nuevo'}` : 'none'}
+        product={picking?.product ?? null}
+        onClose={() => setPicking(null)}
+        initialExcluded={picking?.line?.excluded}
+        initialNotes={picking?.line?.notes}
+        initialQuantity={picking?.line?.quantity ?? 1}
+        withQuantity
+        confirmLabel={picking?.line ? 'Guardar' : 'Agregar'}
         ingredientsHint="Desmarca lo que el cliente no quiera."
-        onAdd={(product, excluded, notes) =>
-          setLines((current) => ({
-            ...current,
-            [product.key]: {
-              product,
-              excluded,
-              notes,
-              quantity: Math.max(current[product.key]?.quantity ?? 0, 1),
-            },
-          }))
-        }
+        onRemove={picking?.line ? () => removeLine(picking.line!.id) : undefined}
+        onAdd={pick}
       />
 
       {charging && (
         <ChargeSheet
           table={{ id: tableId, number: tableNumber, total: tableTotal, kitchenPending: orders.some((o) => o.kitchenPending) }}
-          onClose={() => setCharging(false)}
-          onDone={(summary) => {
-            setCharging(false);
-            Alert.alert(`Mesa ${tableNumber}`, summary, [{ text: 'Listo', onPress: () => router.back() }]);
+          only={charging.only}
+          onClose={() => setCharging(null)}
+          onDone={(summary, wholeTable) => {
+            setCharging(null);
+            detail.reload();
+            Alert.alert(`Mesa ${tableNumber}`, summary, [{ text: 'Listo', onPress: wholeTable ? () => router.back() : undefined }]);
           }}
         />
       )}
@@ -370,56 +466,68 @@ export default function TakeOrderScreen() {
   );
 }
 
-/** What the table already ordered, per diner, so nothing is asked twice. */
-function TableOrders({ orders }: { orders: ReturnType<typeof openOrders> }) {
+/** One person's account: what they ordered (with their changes) and what they owe. */
+function AccountCard({ order, onCharge }: { order: TableOrder; onCharge: () => void }) {
   const { colors } = useBrandTheme();
-  if (orders.length === 0) {
-    return <Text style={[styles.empty, { color: colors.textSecondary }]}>Esta mesa aún no tiene pedidos.</Text>;
-  }
   return (
-    <View style={[styles.tableOrders, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-      {orders.map((order, i) => (
-        <View key={order.ref ?? order.id ?? i} style={[styles.tableOrder, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
-          <View style={styles.tableOrderTop}>
-            <Text style={[styles.tableOrderLabel, { color: colors.text }]}>
-              {order.label}
-              {order.unsent && <Text style={{ color: AMBER }}>  · sin enviar</Text>}
-            </Text>
-            <Text style={[styles.tableOrderTotal, { color: colors.text }]}>{formatMoney(order.total)}</Text>
+    <View style={[styles.account, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+      <View style={styles.accountTop}>
+        <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={18} tintColor={Brand.blue} />
+        <Text style={[styles.accountName, { color: colors.text }]} numberOfLines={1}>
+          {order.label}
+        </Text>
+        {order.unsent ? (
+          <Text style={[styles.badge, { color: AMBER, borderColor: `${AMBER}66` }]}>Sin enviar</Text>
+        ) : (
+          order.kitchenPending && <Text style={[styles.badge, { color: Brand.orange, borderColor: `${Brand.orange}66` }]}>En cocina</Text>
+        )}
+      </View>
+
+      {order.items.length > 0 ? (
+        order.items.map((item, i) => (
+          <View key={i} style={styles.accountItem}>
+            <Text style={[styles.accountQty, { color: colors.textSecondary }]}>{item.quantity}×</Text>
+            <View style={styles.lineText}>
+              <Text style={[styles.accountItemName, { color: colors.text }]}>{item.name}</Text>
+              {!!item.notes.trim() && <Text style={styles.lineCustom}>{item.notes}</Text>}
+            </View>
+            <Text style={[styles.accountItemPrice, { color: colors.text }]}>{formatMoney(item.price * item.quantity)}</Text>
           </View>
-          <Text style={[styles.tableOrderItems, { color: colors.textSecondary }]}>
-            {order.items.map((item) => `${item.quantity}× ${item.name}`).join(' · ')}
-          </Text>
-        </View>
-      ))}
+        ))
+      ) : (
+        <Text style={[styles.accountQty, { color: colors.textSecondary }]}>Sin detalle de platillos.</Text>
+      )}
+
+      <View style={[styles.accountBottom, { borderTopColor: colors.border }]}>
+        <Text style={[styles.accountTotal, { color: colors.text }]}>{formatMoney(order.total)}</Text>
+        {order.unsent ? (
+          <Text style={[styles.accountHint, { color: colors.textSecondary }]}>Se cobra cuando llegue al sistema.</Text>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Cobrar a ${order.label}`}
+            onPress={onCharge}
+            style={({ pressed }) => [styles.accountCharge, { opacity: pressed ? 0.85 : 1 }]}>
+            <Text style={styles.accountChargeText}>Cobrar a {order.label}</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
 
-/** Tap the dish to add one; − and the pencil (ingredients, notes) appear once it's chosen. */
-function OrderRow({
-  product,
-  line,
-  onChange,
-  onEdit,
-}: {
-  product: Product;
-  line?: Line;
-  onChange: (quantity: number) => void;
-  onEdit: () => void;
-}) {
+/** Tapping a dish opens its card to choose ingredients, comments and how many. */
+function ProductRow({ product, quantity, onPress }: { product: Product; quantity: number; onPress: () => void }) {
   const { colors } = useBrandTheme();
-  const quantity = line?.quantity ?? 0;
   const orderable = product.available && product.id !== null;
-  const customized = !!line && (line.excluded.length > 0 || !!line.notes.trim());
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${product.name}, ${formatMoney(product.price)}${quantity ? `, ${quantity} en el pedido` : ''}`}
-      accessibilityHint="Agrega uno"
+      accessibilityHint="Abre el platillo para agregarlo"
       disabled={!orderable}
-      onPress={() => onChange(quantity + 1)}
+      onPress={onPress}
       style={({ pressed }) => [
         styles.row,
         { backgroundColor: colors.surface, borderColor: quantity > 0 ? Brand.blue : colors.border },
@@ -435,43 +543,20 @@ function OrderRow({
         <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={2}>
           {product.name}
         </Text>
-        <Text style={styles.rowPrice}>{formatMoney(product.price)}</Text>
-        {!orderable && <Text style={styles.unavailable}>Agotado</Text>}
-        {customized && (
-          <Text style={[styles.custom, { color: Brand.orange }]} numberOfLines={2}>
-            {[
-              line!.excluded.length > 0 ? `Sin ${line!.excluded.map((i) => i.name.toLowerCase()).join(', ')}` : '',
-              line!.notes.trim(),
-            ]
-              .filter(Boolean)
-              .join(' · ')}
+        {!!product.description && (
+          <Text style={[styles.rowDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+            {product.description}
           </Text>
         )}
+        <Text style={styles.rowPrice}>{formatMoney(product.price)}</Text>
+        {!orderable && <Text style={styles.unavailable}>Agotado</Text>}
       </View>
 
       {quantity > 0 ? (
-        <View style={styles.controls}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Personalizar ${product.name}`}
-            onPress={onEdit}
-            hitSlop={4}
-            style={[styles.iconButton, { backgroundColor: colors.background, borderColor: customized ? Brand.orange : colors.border }]}>
-            <SymbolView name={{ ios: 'square.and.pencil', android: 'edit_note', web: 'edit_note' }} size={18} tintColor={customized ? Brand.orange : colors.text} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Quitar uno de ${product.name}`}
-            onPress={() => onChange(quantity - 1)}
-            hitSlop={4}
-            style={[styles.iconButton, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.stepText, { color: colors.text }]}>−</Text>
-          </Pressable>
-          <View style={styles.qtyBadge}>
-            <Text style={styles.qtyText} accessibilityLiveRegion="polite">
-              {quantity}
-            </Text>
-          </View>
+        <View style={styles.qtyBadge}>
+          <Text style={styles.qtyText} accessibilityLiveRegion="polite">
+            {quantity}
+          </Text>
         </View>
       ) : (
         orderable && (
@@ -519,18 +604,23 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyBold,
     fontSize: 13,
   },
-  chargeButton: {
-    minHeight: 44,
-    paddingHorizontal: 18,
+  tabs: {
+    flexDirection: 'row',
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+  },
+  tab: {
+    flex: 1,
+    minHeight: 40,
     borderRadius: Radius.sm,
-    backgroundColor: Brand.green,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chargeText: {
-    color: Brand.white,
+  tabText: {
     fontFamily: BrandFonts.bodyBold,
-    fontSize: 15,
+    fontSize: 14,
     textTransform: 'uppercase',
   },
   diner: {
@@ -620,35 +710,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  tableOrders: {
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    paddingHorizontal: 14,
-  },
-  tableOrder: {
-    paddingVertical: 10,
-    gap: 4,
-  },
-  tableOrderTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  tableOrderLabel: {
-    flex: 1,
-    fontFamily: BrandFonts.bodyBold,
-    fontSize: 15,
-  },
-  tableOrderTotal: {
-    fontFamily: BrandFonts.bodyBold,
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
-  },
-  tableOrderItems: {
-    fontFamily: BrandFonts.body,
-    fontSize: 13,
-    lineHeight: 18,
-  },
   empty: {
     fontFamily: BrandFonts.body,
     fontSize: 15,
@@ -667,8 +728,8 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   thumb: {
-    width: 60,
-    height: 60,
+    width: 64,
+    height: 64,
     borderRadius: Radius.sm,
   },
   rowText: {
@@ -679,6 +740,11 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyBold,
     fontSize: 16,
   },
+  rowDescription: {
+    fontFamily: BrandFonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   rowPrice: {
     color: Brand.greenLight,
     fontFamily: BrandFonts.bodyBold,
@@ -688,23 +754,6 @@ const styles = StyleSheet.create({
     color: Brand.red,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
-  },
-  custom: {
-    fontFamily: BrandFonts.bodyMedium,
-    fontSize: 12,
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   qtyBadge: {
     minWidth: 44,
@@ -735,6 +784,86 @@ const styles = StyleSheet.create({
   dim: {
     opacity: 0.4,
   },
+  account: {
+    gap: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+  },
+  accountTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accountName: {
+    flex: 1,
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 17,
+  },
+  badge: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    borderWidth: 1,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
+  accountItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  accountQty: {
+    minWidth: 28,
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 14,
+  },
+  accountItemName: {
+    fontFamily: BrandFonts.bodyMedium,
+    fontSize: 14,
+  },
+  accountItemPrice: {
+    fontFamily: BrandFonts.bodyMedium,
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+  },
+  accountBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  accountTotal: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 20,
+    fontVariant: ['tabular-nums'],
+  },
+  accountHint: {
+    flex: 1,
+    textAlign: 'right',
+    fontFamily: BrandFonts.body,
+    fontSize: 13,
+  },
+  accountCharge: {
+    flexShrink: 1,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: Radius.sm,
+    backgroundColor: Brand.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountChargeText: {
+    color: Brand.white,
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 14,
+    textTransform: 'uppercase',
+  },
   bottomBar: {
     position: 'absolute',
     left: 0,
@@ -744,6 +873,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  lines: {
+    maxHeight: 200,
+  },
+  linesContent: {
+    gap: 6,
+  },
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderRadius: Radius.sm,
+  },
+  lineQty: {
+    color: Brand.blue,
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 16,
+    minWidth: 30,
+  },
+  lineText: {
+    flex: 1,
+  },
+  lineName: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 14,
+  },
+  lineCustom: {
+    color: Brand.orange,
+    fontFamily: BrandFonts.bodyMedium,
+    fontSize: 12,
+  },
+  linePrice: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
   },
   offlineNote: {
     color: AMBER,
