@@ -1,0 +1,34 @@
+# CP-04: el mesero inicia sesión, ve el mapa de mesas y abre una mesa con sus pestañas
+# "Tomar pedido" y "Cuentas". No envía nada a cocina ni cobra.
+appId: com.la501.sports
+name: CP-04 Mesero - mapa de mesas y cuentas
+tags:
+  - mesero
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Cuenta"
+    timeout: 45000
+- tapOn: "Cuenta"
+- tapOn: "Iniciar sesión"
+- tapOn: "tu@correo.com"
+- inputText: ${MESERO_EMAIL}
+- tapOn: "••••••••"
+- inputText: ${MESERO_PASSWORD}
+- hideKeyboard
+- tapOn: "Entrar"
+- extendedWaitUntil:
+    visible: "Mesas"
+    timeout: 30000
+- assertVisible: ".*ocupadas.*libres.*"
+- tapOn: "Mesa 1,.*"
+- extendedWaitUntil:
+    visible: "Tomar pedido"
+    timeout: 15000
+- assertVisible: "Pidiendo: .*"
+- tapOn: "Buscar platillo o bebida"
+- inputText: "agua"
+- assertVisible: "Agua.*"
+- tapOn: "Cuentas.*"
+- takeScreenshot: CP-04-cuentas
