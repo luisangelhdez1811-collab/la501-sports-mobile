@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { Product } from '@/types/product';
-import { searchProducts } from '@/utils/menu-search';
+import { searchProducts } from '@/domain/menu-search';
 
 const platillo = (name: string, category: string, description = '', subcategory = ''): Product => ({
   key: name,

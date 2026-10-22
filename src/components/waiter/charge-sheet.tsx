@@ -19,38 +19,26 @@ import { formatMoney } from '@/components/account/orders-list';
 import { FormMessage } from '@/components/brand/form-message';
 import { TextField } from '@/components/brand/text-field';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { createBills, coversTable, orderKey, ordersTotal, type Bill } from '@/domain/bills';
 import { chargeOrders, CHARGE_NEEDS_CONNECTION, CHARGE_NEEDS_SENT_ORDERS } from '@/data/waiter-actions';
 import { newRef, useOutbox } from '@/data/waiter-outbox';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { openOrders } from '@/utils/waiter-tables';
+import { openOrders } from '@/domain/waiter-tables';
 
 const MAX_PAYMENTS = 3;
 const AMBER = '#F59E0B';
 
 type Row = { key: number; method: PaymentMethod; amount: string };
 
-/** What gets paid in one go: the whole table, or one diner's order. */
-type Bill = { label: string; orders: TableOrder[]; total: number };
-
 const toAmount = (text: string) => {
   const n = Number.parseFloat(text.replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 const cents = (n: number) => Math.round(n * 100);
-const sum = (orders: TableOrder[]) => orders.reduce((total, o) => total + o.total, 0);
 
-function togetherBill(orders: TableOrder[]): Bill[] {
-  return [{ label: 'Mesa completa', orders, total: sum(orders) }];
-}
-
-function separateBills(orders: TableOrder[]): Bill[] {
-  return orders.map((order) => ({ label: order.label, orders: [order], total: order.total }));
-}
-
-/** Identifies one diner's order across reloads (phone reference, else server id). */
-export const orderKey = (order: Pick<TableOrder, 'id' | 'ref'>) => order.ref ?? String(order.id);
+export { orderKey } from '@/domain/bills';
 
 type ChargeSheetProps = {
   table: { id: number; number: string; total: number; kitchenPending: boolean };
@@ -85,11 +73,9 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
     ? openOrders(detail.data, table.id, entries)
     : // No saved copy of this table yet: one bill, as the map shows it (charged once online).
       [{ id: null, ref: null, label: 'Mesa completa', total: table.total, kitchenPending: table.kitchenPending, items: [] }];
-  const single = only ? orders.filter((o) => orderKey(o) === only) : null;
-  const choosing = bills === null && !single && orders.length > 1;
-  const activeBills = bills ?? (single ? separateBills(single) : togetherBill(orders));
+  const choosing = bills === null && !only && orders.length > 1;
+  const activeBills = bills ?? createBills(orders, only ? { mode: 'una', key: only } : { mode: 'junto' });
   const bill = activeBills[step];
-  const charged = activeBills.reduce((n, b) => n + b.orders.length, 0);
 
   const finishBill = (outcome: string) => {
     const next = [...outcomes, outcome];
@@ -97,7 +83,7 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
       setOutcomes(next);
       setStep(step + 1);
     } else {
-      onDone(next.join('\n'), charged >= orders.length);
+      onDone(next.join('\n'), coversTable(activeBills, orders));
     }
   };
 
@@ -127,9 +113,9 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
           ) : choosing ? (
             <ChooseMode
               orders={orders}
-              onTogether={() => setBills(togetherBill(orders))}
-              onSeparate={() => setBills(separateBills(orders))}
-              onOne={(order) => setBills(separateBills([order]))}
+              onTogether={() => setBills(createBills(orders, { mode: 'junto' }))}
+              onSeparate={() => setBills(createBills(orders, { mode: 'separado' }))}
+              onOne={(order) => setBills(createBills(orders, { mode: 'una', key: orderKey(order) }))}
             />
           ) : bill ? (
             <BillPayment
@@ -165,7 +151,7 @@ function ChooseMode({
       <Text style={[styles.question, { color: colors.text }]}>¿Cómo van a pagar?</Text>
       <ModeButton
         icon={{ ios: 'person.3.fill', android: 'groups', web: 'groups' }}
-        title={`Todo junto · ${formatMoney(sum(orders))}`}
+        title={`Todo junto · ${formatMoney(ordersTotal(orders))}`}
         subtitle={`Una sola cuenta con los ${orders.length} pedidos de la mesa.`}
         onPress={onTogether}
       />

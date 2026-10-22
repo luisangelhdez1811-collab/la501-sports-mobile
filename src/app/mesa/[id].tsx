@@ -24,8 +24,8 @@ import { useIsOffline } from '@/hooks/use-connectivity';
 import { useMenu } from '@/hooks/use-menu';
 import type { Ingredient, Product } from '@/types/product';
 import { menuImage } from '@/utils/image-source';
-import { searchProducts } from '@/utils/menu-search';
-import { nextDinerLabel, openOrders } from '@/utils/waiter-tables';
+import { searchProducts } from '@/domain/menu-search';
+import { nextDinerLabel, openOrders } from '@/domain/waiter-tables';
 
 /** One dish in the current diner's order; the same dish can appear with different choices. */
 type Line = { id: number; product: Product; quantity: number; excluded: Ingredient[]; notes: string };

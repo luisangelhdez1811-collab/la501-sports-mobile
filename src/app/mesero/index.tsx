@@ -17,7 +17,7 @@ import { useOutbox } from '@/data/waiter-outbox';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { summarize, tableView, type TableView } from '@/utils/waiter-tables';
+import { summarize, tableView, type TableView } from '@/domain/waiter-tables';
 
 // Other waiters change tables too: refresh the map every so often while it's open.
 const REFRESH_MS = 20_000;

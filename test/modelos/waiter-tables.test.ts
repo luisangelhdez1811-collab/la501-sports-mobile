@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import type { RestaurantTable, TableDetail } from '@/api/waiter';
 import type { OutboxOrder } from '@/data/waiter-outbox';
-import { nextDinerLabel, openOrders, summarize, tableView } from '@/utils/waiter-tables';
+import { nextDinerLabel, openOrders, summarize, tableView } from '@/domain/waiter-tables';
 
 const mesa = (datos: Partial<RestaurantTable> = {}): RestaurantTable => ({
   id: 3,
