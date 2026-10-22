@@ -8,6 +8,7 @@ import { BrandScreen } from '@/components/brand/brand-screen';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { useGuardedSignOut } from '@/hooks/use-guarded-sign-out';
 
 function initials(name: string) {
   return name
@@ -20,10 +21,11 @@ function initials(name: string) {
 
 const ROLE_LABEL = { cliente: 'Cliente', mesero: 'Mesero', admin: 'Administrador' } as const;
 
-/** Staff account (admin or waiter): who is signed in, privacy, settings and sign out. */
+/** Staff account (admin or waiter): who is signed in, settings and sign out. */
 export function StaffProfile() {
   const { colors } = useBrandTheme();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const signOut = useGuardedSignOut();
   if (!user) return null;
 
   return (

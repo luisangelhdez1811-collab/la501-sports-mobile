@@ -3,14 +3,24 @@ import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 import * as authApi from '@/api/auth';
 import type { RegisterInput, User } from '@/api/auth';
 import { ApiError, onSessionExpired } from '@/api/client';
-import { hasToken } from '@/api/token-storage';
-import { deleteCache, readCache, USER_CACHE_KEYS, writeCache } from '@/utils/offline-cache';
+import { getToken, hasToken, saveToken } from '@/api/token-storage';
+import {
+  deleteCache,
+  deleteCacheByPrefix,
+  readCache,
+  USER_CACHE_KEYS,
+  USER_CACHE_PREFIXES,
+  writeCache,
+} from '@/utils/offline-cache';
 
 const SESSION_USER_KEY = 'session-user';
 
-// Profile only (name, email, role, points): the token itself stays in SecureStore.
+// Profile (name, email, role, points) and the waiter's saved tables. The token itself
+// stays in SecureStore. Orders not sent yet are never deleted here: the waiter can't sign
+// out while there are any (see waiter-outbox).
 function forgetUserData() {
   deleteCache(...USER_CACHE_KEYS);
+  USER_CACHE_PREFIXES.forEach(deleteCacheByPrefix);
 }
 
 type AuthStatus = 'loading' | 'guest' | 'authenticated';
@@ -80,9 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string, remember: boolean) => {
     const signedIn = await authApi.login(email, password, { remember });
+    // The waiter's session is always kept: reopening the app without internet must still
+    // show the tables and the saved orders (it holds no payment data).
+    const keep = remember || signedIn.role === 'mesero';
+    if (keep && !remember) {
+      const token = await getToken();
+      // Best effort: if the phone can't store it, the session still works until closed.
+      if (token) await saveToken(token).catch(() => {});
+    }
     forgetUserData();
     // "Mantener sesión iniciada" off: the profile isn't kept for the next launch.
-    if (remember) writeCache(SESSION_USER_KEY, signedIn);
+    if (keep) writeCache(SESSION_USER_KEY, signedIn);
     setUserState(signedIn);
     setStatus('authenticated');
     return signedIn;

@@ -1,23 +1,22 @@
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { Ingredient, Product } from '@/types/product';
+import {
+  addItem,
+  cartCount,
+  cartTotal,
+  changeQuantity,
+  removeItem,
+  type AddOptions,
+  type CartItem,
+} from '@/domain/cart';
+import type { Product } from '@/types/product';
 import { readCache, writeCache } from '@/utils/offline-cache';
 
-const MAX_QUANTITY = 99;
+export type { CartItem } from '@/domain/cart';
+
 const CART_KEY = 'cart';
 // A cart left for days probably has stale prices/availability; start fresh instead.
 const CART_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-
-export type CartItem = {
-  /** Same product with different customizations becomes separate lines. */
-  lineId: string;
-  product: Product;
-  quantity: number;
-  excluded: Ingredient[];
-  notes: string;
-};
-
-type AddOptions = { excluded?: Ingredient[]; notes?: string };
 
 type CartContextValue = {
   items: CartItem[];
@@ -33,18 +32,11 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-function lineIdFor(product: Product, excluded: Ingredient[], notes: string) {
-  const removed = excluded
-    .map((i) => i.id ?? i.name)
-    .sort()
-    .join(',');
-  return `${product.key}|${removed}|${notes.trim().toLowerCase()}`;
-}
-
 /**
- * Local cart, as the API expects: the server only receives the items at checkout, where
- * prices are recalculated from the database (never trust client-side prices). It's saved
- * on the device so closing the app or losing signal doesn't empty it.
+ * Cart ViewModel (MVVM): holds the cart state for the screens and applies the rules from
+ * the domain model (src/domain/cart). The server only receives the items at checkout,
+ * where prices are recalculated from the database. It's saved on the device so closing
+ * the app or losing signal doesn't empty it.
  */
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -63,38 +55,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (restored.current) writeCache(CART_KEY, items);
   }, [items]);
 
-  const add = (product: Product, { excluded = [], notes = '' }: AddOptions = {}) => {
-    const cleanNotes = notes.trim().slice(0, 300);
-    const lineId = lineIdFor(product, excluded, cleanNotes);
-    setItems((current) => {
-      const existing = current.find((item) => item.lineId === lineId);
-      if (!existing) return [...current, { lineId, product, quantity: 1, excluded, notes: cleanNotes }];
-      return current.map((item) =>
-        item === existing ? { ...item, quantity: Math.min(item.quantity + 1, MAX_QUANTITY) } : item,
-      );
-    });
-  };
-
-  const changeQuantity = (lineId: string, delta: number) => {
-    setItems((current) =>
-      current
-        .map((item) =>
-          item.lineId === lineId
-            ? { ...item, quantity: Math.min(item.quantity + delta, MAX_QUANTITY) }
-            : item,
-        )
-        .filter((item) => item.quantity > 0),
-    );
-  };
-
   const value: CartContextValue = {
     items,
-    count: items.reduce((total, item) => total + item.quantity, 0),
-    total: items.reduce((total, item) => total + item.quantity * item.product.price, 0),
-    add,
-    increment: (lineId) => changeQuantity(lineId, 1),
-    decrement: (lineId) => changeQuantity(lineId, -1),
-    remove: (lineId) => setItems((current) => current.filter((item) => item.lineId !== lineId)),
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product, options) => setItems((current) => addItem(current, product, options)),
+    increment: (lineId) => setItems((current) => changeQuantity(current, lineId, 1)),
+    decrement: (lineId) => setItems((current) => changeQuantity(current, lineId, -1)),
+    remove: (lineId) => setItems((current) => removeItem(current, lineId)),
     clear: () => setItems([]),
   };
 

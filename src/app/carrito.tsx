@@ -41,11 +41,12 @@ function EmptyCart() {
   );
 }
 
-/** "Popular entre nuestros visitantes" — hidden if the endpoint fails or is empty. */
+/** Suggestions (popular, or from the customer's past orders) — hidden if none. */
 function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
   const { colors } = useBrandTheme();
   const cart = useCart();
   const [items, setItems] = useState<Product[]>([]);
+  const [personalized, setPersonalized] = useState(false);
   const idsKey = cart.items
     .map((i) => i.product.id)
     .filter((id): id is number => id !== null)
@@ -55,7 +56,10 @@ function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
     const controller = new AbortController();
     const ids = idsKey ? idsKey.split(',').map(Number) : [];
     getRecommendations(ids, controller.signal)
-      .then((data) => setItems(data.filter((p) => p.available).slice(0, 8)))
+      .then((data) => {
+        setItems(data.products.filter((p) => p.available).slice(0, 8));
+        setPersonalized(data.personalized);
+      })
       .catch(() => setItems([]));
     return () => controller.abort();
   }, [idsKey]);
@@ -64,7 +68,9 @@ function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
 
   return (
     <FormCard accent="green-orange">
-      <Text style={[styles.cardTitle, { color: colors.text }]}>Popular entre nuestros visitantes</Text>
+      <Text style={[styles.cardTitle, { color: colors.text }]}>
+        {personalized ? 'Basado en tus pedidos anteriores' : 'Popular entre nuestros visitantes'}
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recoList}>
         {items.map((product) => (
           <View key={product.key} style={[styles.reco, { backgroundColor: colors.background, borderColor: colors.border }]}>

@@ -65,6 +65,34 @@ export default function WaiterPerformanceScreen() {
         />
       </StatGrid>
 
+      {!!data && data.issues.length > 0 && (
+        <Panel
+          icon={{ ios: 'exclamationmark.triangle.fill', android: 'report', web: 'report' }}
+          title="Cobros por revisar"
+          color={Brand.red}
+          count={data.issues.length}>
+          {data.issues.map((issue, i) => (
+            <View key={`${issue.table}-${i}`} style={[styles.tableCard, { borderColor: `${Brand.red}66`, backgroundColor: colors.background }]}>
+              <View style={styles.tableTop}>
+                <Text style={[styles.tableName, { color: colors.text }]}>Mesa {issue.table}</Text>
+                <Text style={[styles.tableTotal, { color: colors.text }]}>
+                  {formatMoney(issue.amountReceived)} de {formatMoney(issue.totalDue)}
+                </Text>
+              </View>
+              <Text style={[styles.tableMeta, { color: colors.textSecondary }]}>
+                Cobró: <Text style={{ color: colors.text }}>{issue.waiter || '—'}</Text>
+                {issue.notes ? ` · ${issue.notes}` : ''}
+              </Text>
+              <View style={styles.tableBottom}>
+                {!!issue.chargedAt && <Text style={[styles.tableMeta, { color: colors.textSecondary }]}>{time.format(issue.chargedAt)}</Text>}
+                <Tag label={issue.status === 'conflict' ? 'Posible doble cobro' : 'Pago incompleto'} color={Brand.red} />
+                {issue.offline && <Tag label="Sin conexión" color={AdminColors.yellow} />}
+              </View>
+            </View>
+          ))}
+        </Panel>
+      )}
+
       <Panel icon={{ ios: 'trophy.fill', android: 'emoji_events', web: 'emoji_events' }} title="Ranking por mesero" color={AdminColors.yellow}>
         <PanelState
           loading={perf.loading}
@@ -98,7 +126,10 @@ export default function WaiterPerformanceScreen() {
           {data.tables.map((row, i) => (
             <View key={`${row.table}-${i}`} style={[styles.tableCard, { borderColor: row.forced ? `${Brand.red}66` : colors.border, backgroundColor: colors.background }]}>
               <View style={styles.tableTop}>
-                <Text style={[styles.tableName, { color: colors.text }]}>Mesa {row.table}</Text>
+                <Text style={[styles.tableName, { color: colors.text }]}>
+                  Mesa {row.table}
+                  {row.label ? ` · ${row.label}` : ''}
+                </Text>
                 <Text style={[styles.tableTotal, { color: colors.text }]}>{formatMoney(row.total)}</Text>
               </View>
               <Text style={[styles.tableMeta, { color: colors.textSecondary }]}>
@@ -108,6 +139,7 @@ export default function WaiterPerformanceScreen() {
               <View style={styles.tableBottom}>
                 {!!row.closedAt && <Text style={[styles.tableMeta, { color: colors.textSecondary }]}>{time.format(row.closedAt)}</Text>}
                 {row.forced && <Tag label="Cobro forzado" color={Brand.red} />}
+                {row.offline && <Tag label="Sin conexión" color={AdminColors.yellow} />}
               </View>
             </View>
           ))}

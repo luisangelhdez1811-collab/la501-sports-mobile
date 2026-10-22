@@ -31,10 +31,15 @@ type ProductDetailSheetProps = {
    * Present → ordering mode ("Arma tu pedido"): ingredient checklist, comments and
    * Cancelar / Agregar al pedido. Absent → read-only menu card.
    */
-  onAdd?: (product: Product, excluded: Ingredient[], notes: string) => void;
+  onAdd?: (product: Product, excluded: Ingredient[], notes: string, quantity: number) => void;
   /** Ordering mode: choices already made for this dish (e.g. editing a table's order). */
   initialExcluded?: Ingredient[];
   initialNotes?: string;
+  /** Ordering mode: also pick how many (the waiter's order). */
+  withQuantity?: boolean;
+  initialQuantity?: number;
+  /** Ordering mode, editing a dish already chosen: a button to take it out. */
+  onRemove?: () => void;
   /** Ordering mode button text, "Agregar al pedido" by default. */
   confirmLabel?: string;
   /** Who the checklist speaks to, e.g. "Desmarca lo que el cliente no quiera." */
@@ -42,6 +47,7 @@ type ProductDetailSheetProps = {
 };
 
 const ingredientKey = (ingredient: Ingredient) => String(ingredient.id ?? ingredient.name);
+const MAX_QUANTITY = 50;
 
 function IngredientToggle({
   ingredient,
@@ -95,6 +101,9 @@ export function ProductDetailSheet({
   initialNotes = '',
   confirmLabel = 'Agregar al pedido',
   ingredientsHint = 'Desmarca lo que no quieras en tu platillo.',
+  withQuantity = false,
+  initialQuantity = 1,
+  onRemove,
 }: ProductDetailSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
@@ -103,6 +112,7 @@ export function ProductDetailSheet({
   // Starting choices are read when the sheet mounts; give it a `key` per dish to reset them.
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set((initialExcluded ?? []).map(ingredientKey)));
   const [notes, setNotes] = useState(initialNotes);
+  const [quantity, setQuantity] = useState(initialQuantity);
 
   const ordering = !!onAdd;
   // Only regular dishes have a detail endpoint (promotions don't).
@@ -154,7 +164,12 @@ export function ProductDetailSheet({
   const add = () => {
     if (!product || !onAdd) return;
     const removed = (detail?.ingredients ?? []).filter((i) => excluded.has(ingredientKey(i)));
-    onAdd(product, removed, notes);
+    onAdd(product, removed, notes, withQuantity ? quantity : 1);
+    close();
+  };
+
+  const remove = () => {
+    onRemove?.();
     close();
   };
 
@@ -173,7 +188,8 @@ export function ProductDetailSheet({
             <ScrollView
               bounces={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+              style={styles.scroll}
+              contentContainerStyle={{ paddingBottom: ordering ? 8 : insets.bottom + 24 }}>
               <View style={styles.media}>
                 {product.image ? (
                   <Image
@@ -293,21 +309,58 @@ export function ProductDetailSheet({
                   </Text>
                 </View>
 
-                {ordering && (
-                  <View style={styles.actions}>
-                    <BrandButton title="Cancelar" variant="secondary" onPress={close} style={styles.cancel} />
-                    <BrandButton
-                      title={canOrder ? confirmLabel : 'No disponible'}
-                      variant="action"
-                      icon={canOrder ? { ios: 'cart.badge.plus', android: 'add_shopping_cart', web: 'add_shopping_cart' } : undefined}
-                      onPress={add}
-                      disabled={!canOrder || loadingDetail}
-                      style={styles.confirm}
-                    />
-                  </View>
-                )}
               </View>
             </ScrollView>
+
+            {/* Always in reach, without scrolling past the ingredients. */}
+            {ordering && (
+              <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+                {withQuantity && canOrder && (
+                  <View style={styles.stepper}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Uno menos"
+                      disabled={quantity <= 1}
+                      onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                      style={[styles.stepButton, { borderColor: colors.border, opacity: quantity <= 1 ? 0.4 : 1 }]}>
+                      <Text style={[styles.stepText, { color: colors.text }]}>−</Text>
+                    </Pressable>
+                    <Text style={[styles.stepValue, { color: colors.text }]} accessibilityLiveRegion="polite">
+                      {quantity}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Uno más"
+                      disabled={quantity >= MAX_QUANTITY}
+                      onPress={() => setQuantity((q) => Math.min(MAX_QUANTITY, q + 1))}
+                      style={[styles.stepButton, { borderColor: colors.border }]}>
+                      <Text style={[styles.stepText, { color: colors.text }]}>+</Text>
+                    </Pressable>
+                  </View>
+                )}
+                <View style={styles.actions}>
+                  {onRemove ? (
+                    <BrandButton title="Quitar" variant="danger" onPress={remove} style={styles.cancel} />
+                  ) : (
+                    !withQuantity && <BrandButton title="Cancelar" variant="secondary" onPress={close} style={styles.cancel} />
+                  )}
+                  <BrandButton
+                    title={
+                      !canOrder
+                        ? 'No disponible'
+                        : withQuantity
+                          ? `${confirmLabel} · ${formatMoney(product.price * quantity)}`
+                          : confirmLabel
+                    }
+                    variant="action"
+                    icon={canOrder ? { ios: 'cart.badge.plus', android: 'add_shopping_cart', web: 'add_shopping_cart' } : undefined}
+                    onPress={add}
+                    disabled={!canOrder || loadingDetail}
+                    style={styles.confirm}
+                  />
+                </View>
+              </View>
+            )}
           </View>
         )}
       </KeyboardAvoidingView>
@@ -326,6 +379,41 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.lg + 8,
     borderTopRightRadius: Radius.lg + 8,
     overflow: 'hidden',
+  },
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  footer: {
+    gap: 12,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+  },
+  stepButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepText: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 24,
+  },
+  stepValue: {
+    minWidth: 40,
+    textAlign: 'center',
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 24,
+    fontVariant: ['tabular-nums'],
   },
   media: {
     aspectRatio: 1.35,
@@ -500,7 +588,6 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: -6,
   },
   cancel: {
     flex: 1,

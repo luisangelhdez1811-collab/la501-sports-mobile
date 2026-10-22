@@ -1,4 +1,4 @@
-import type { CartItem } from '@/hooks/use-cart';
+import type { CartItem } from '@/domain/cart';
 
 import { request } from './client';
 import { asObject, asString, pick, unwrap } from './parse';

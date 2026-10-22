@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Modal, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { deleteAccount, getAccount, togglePromoSubscription, updateProfile } from '@/api/account';
+import { deleteAccount, getAccount, togglePromoSubscription, updatePrivacy, updateProfile, type Privacy } from '@/api/account';
 import { ApiError, errorMessage } from '@/api/client';
 import { PhoneChange } from '@/components/account/phone-change';
 import { BrandButton } from '@/components/brand/brand-button';
@@ -80,6 +80,38 @@ function DataRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PrivacySwitch({
+  title,
+  description,
+  value,
+  onChange,
+  disabled,
+}: {
+  title: string;
+  description: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled: boolean;
+}) {
+  const { colors } = useBrandTheme();
+  return (
+    <View style={styles.switchRow}>
+      <View style={styles.switchText}>
+        <Text style={[styles.switchTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>{description}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ false: colors.border, true: Brand.green }}
+        thumbColor={Brand.white}
+        accessibilityLabel={title}
+      />
+    </View>
+  );
+}
+
 function LinkRow({ icon, label, onPress }: { icon: Icon; label: string; onPress: () => void }) {
   const { colors } = useBrandTheme();
   return (
@@ -96,8 +128,9 @@ function LinkRow({ icon, label, onPress }: { icon: Icon; label: string; onPress:
 
 /**
  * Derechos ARCO in one place: Acceso (see and download), Rectificación (correct),
- * Cancelación (delete the account) and Oposición (opt out of promotions). Personal data
- * is read live from the server and not kept on the device.
+ * Cancelación (delete the account) and Oposición (switch off promotions by email or SMS and
+ * recommendations based on past orders). Personal data is read live from the server and
+ * not kept on the device.
  */
 export default function MyDataScreen() {
   const { colors } = useBrandTheme();
@@ -109,6 +142,7 @@ export default function MyDataScreen() {
   const [saving, setSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<Message>(null);
   const [promoOverride, setPromoOverride] = useState<boolean | null>(null);
+  const [privacyOverride, setPrivacyOverride] = useState<Privacy | null>(null);
   const [toggling, setToggling] = useState(false);
   const [promoMessage, setPromoMessage] = useState<Message>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -116,14 +150,16 @@ export default function MyDataScreen() {
   if (status === 'guest') return <Redirect href="/login" />;
   if (!user) return null;
   // Customer rights screen: staff exercise theirs with the employer, not in the app.
-  if (user.role !== 'cliente') return <Redirect href="/" />;
+  if (user.role !== 'cliente') return <Redirect href={user.role === 'admin' ? '/admin' : '/mesero'} />;
 
   const data = account.data;
   // Fields show the saved values until the person edits them.
   const nameValue = name ?? user.name;
   const emailValue = email ?? user.email;
   const changed = nameValue.trim() !== user.name || emailValue.trim().toLowerCase() !== user.email;
-  const promoSubscribed = promoOverride ?? data?.promoSubscribed ?? false;
+  // null: the server doesn't offer the preferences yet; only promotions by email then.
+  const privacy = privacyOverride ?? data?.privacy ?? null;
+  const promoSubscribed = privacy?.promoEmail ?? promoOverride ?? data?.promoSubscribed ?? false;
 
   const download = () => {
     const copy = {
@@ -147,7 +183,11 @@ export default function MyDataScreen() {
           estado: order.status,
         })),
       },
-      preferencias: { promociones_por_correo: promoSubscribed },
+      preferencias: {
+        promociones_por_correo: promoSubscribed,
+        promociones_por_sms: privacy?.promoSms ?? false,
+        recomendaciones_segun_mis_pedidos: privacy?.personalizedRecommendations ?? true,
+      },
     };
     Share.share({ title: 'Mis datos — La 501 Sports', message: JSON.stringify(copy, null, 2) }).catch(() => {});
   };
@@ -182,12 +222,17 @@ export default function MyDataScreen() {
     }
   };
 
-  const togglePromos = async () => {
+  const setPreference = async (key: keyof Privacy, value: boolean) => {
     setToggling(true);
     setPromoMessage(null);
     try {
-      const next = await togglePromoSubscription();
-      setPromoOverride(next ?? !promoSubscribed);
+      if (privacy) {
+        setPrivacyOverride(await updatePrivacy({ [key]: value }));
+      } else {
+        // Server before the privacy preferences: promotions by email still toggle.
+        const next = await togglePromoSubscription();
+        setPromoOverride(next ?? !promoSubscribed);
+      }
     } catch (err) {
       setPromoMessage({ type: 'error', text: errorMessage(err) });
     } finally {
@@ -219,6 +264,15 @@ export default function MyDataScreen() {
             {!!data?.memberSince && <DataRow label="Miembro desde" value={longDate.format(data.memberSince)} />}
             {user.role === 'cliente' && <DataRow label="Puntos" value={String(data?.points ?? user.points)} />}
             <DataRow label="Promociones por correo" value={promoSubscribed ? 'Sí, autorizadas' : 'No'} />
+            {!!privacy && (
+              <>
+                <DataRow label="Promociones por SMS" value={privacy.promoSms ? 'Sí, autorizadas' : 'No'} />
+                <DataRow
+                  label="Recomendaciones según mis pedidos"
+                  value={privacy.personalizedRecommendations ? 'Sí' : 'No, me opuse'}
+                />
+              </>
+            )}
           </View>
           <BrandButton
             title="Descargar una copia"
@@ -257,22 +311,31 @@ export default function MyDataScreen() {
 
         {/* O — Oposición */}
         <RightCard letter="O" title="Oposición" description="Decide si tus datos se usan para fines no necesarios." color={Brand.greenLight}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchText}>
-              <Text style={[styles.switchTitle, { color: colors.text }]}>Promociones y ofertas por correo</Text>
-              <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-                Finalidad secundaria. Apágalo para dejar de recibirlas.
-              </Text>
-            </View>
-            <Switch
-              value={promoSubscribed}
-              onValueChange={togglePromos}
-              disabled={toggling || !data}
-              trackColor={{ false: colors.border, true: Brand.green }}
-              thumbColor={Brand.white}
-              accessibilityLabel="Recibir promociones por correo"
-            />
-          </View>
+          <PrivacySwitch
+            title="Promociones y ofertas por correo"
+            description="Finalidad secundaria. Apágalo para dejar de recibirlas."
+            value={promoSubscribed}
+            onChange={(value) => setPreference('promoEmail', value)}
+            disabled={toggling || !data}
+          />
+          {!!privacy && (
+            <>
+              <PrivacySwitch
+                title="Promociones por SMS"
+                description="Apagado hasta que lo autorices. Los códigos de verificación y avisos de tu pedido siempre llegan."
+                value={privacy.promoSms}
+                onChange={(value) => setPreference('promoSms', value)}
+                disabled={toggling}
+              />
+              <PrivacySwitch
+                title="Recomendaciones según mis pedidos"
+                description="Usamos tus pedidos anteriores para sugerirte platillos en el carrito. Apágalo y verás sugerencias generales."
+                value={privacy.personalizedRecommendations}
+                onChange={(value) => setPreference('personalizedRecommendations', value)}
+                disabled={toggling}
+              />
+            </>
+          )}
           {!!promoMessage && <FormMessage type={promoMessage.type}>{promoMessage.text}</FormMessage>}
           <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
             Para oponerte a otro uso de tus datos o revocar tu consentimiento, escríbenos.

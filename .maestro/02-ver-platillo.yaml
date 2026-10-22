@@ -1,0 +1,27 @@
+# CP-02: abrir una categoría y la ficha de un platillo (descripción e ingredientes),
+# y agregarlo al pedido sin enviarlo.
+appId: com.la501.sports
+name: CP-02 Ver un platillo y agregarlo al pedido
+tags:
+  - cliente
+---
+- launchApp
+- extendedWaitUntil:
+    visible: ".*Hamburguesas.*"
+    timeout: 45000
+- tapOn: ".*Hamburguesas.*"
+- extendedWaitUntil:
+    visible: ".*Agregar"
+    timeout: 20000
+- tapOn:
+    text: ".*Agregar"
+    index: 0
+- extendedWaitUntil:
+    visible: "Descripción"
+    timeout: 15000
+- assertVisible: "Agregar al pedido"
+- tapOn: "Agregar al pedido"
+- extendedWaitUntil:
+    visible: "Ver tu orden.*"
+    timeout: 10000
+- takeScreenshot: CP-02-orden

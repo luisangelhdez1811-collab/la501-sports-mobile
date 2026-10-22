@@ -70,9 +70,39 @@ try {
 console.log(`\nHTTP ${res.status}  ${res.headers.get('content-type') ?? ''}`);
 console.log(body ? JSON.stringify(redact(body), null, 2) : `(no es JSON) ${text.slice(0, 300)}`);
 
-// Close the session this test created.
+// Same routes the admin and waiter screens load. Their data includes customers' personal
+// details, so only the status and the response's shape are printed, never the values.
+const STAFF_ROUTES = [
+  '/app/auth/me',
+  '/app/admin/sales/summary',
+  '/app/admin/sales/report?type=ganancias&period=months',
+  '/app/admin/reservations?status=pendiente',
+  '/app/admin/messages?filter=todos',
+  '/app/admin/waiters/performance?period=hoy',
+  '/app/waiter/tables',
+];
+
+function shape(value) {
+  if (Array.isArray(value)) return `[${value.length} elementos]`;
+  if (value && typeof value === 'object') {
+    return `{ ${Object.entries(value).map(([k, v]) => `${k}: ${shape(v)}`).join(', ')} }`;
+  }
+  return typeof value;
+}
+
 const token = body?.token ?? body?.access_token ?? body?.data?.token ?? body?.data?.access_token;
 if (typeof token === 'string' && token) {
+  console.log('\nRutas de admin y mesero con esta sesión:');
+  for (const route of STAFF_ROUTES) {
+    const r = await fetch(`${BASE_URL}${route}`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    const data = await r.json().catch(() => null);
+    const detail = r.ok ? shape(data) : (data?.message ?? data?.error ?? '(sin mensaje)');
+    console.log(`  ${r.status}  ${route}\n        ${String(detail).slice(0, 300)}`);
+  }
+
+  // Close the session this test created.
   await fetch(`${BASE_URL}/app/auth/logout`, {
     method: 'POST',
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },

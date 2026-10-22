@@ -211,14 +211,43 @@ export async function markMessageAttended(id: number) {
 export const WAITER_PERIODS = ['hoy', 'semana', 'mes', 'todo'] as const;
 export type WaiterPeriod = (typeof WAITER_PERIODS)[number];
 
+/** A charge from the waiter app the admin should check (made offline, short or duplicated). */
+export type ChargeIssue = {
+  table: string;
+  waiter: string;
+  /** "discrepancy": less was paid than owed. "conflict": the table had nothing left to charge. */
+  status: 'discrepancy' | 'conflict';
+  offline: boolean;
+  totalDue: number;
+  amountReceived: number;
+  notes: string;
+  chargedAt: Date | null;
+};
+
 export type WaiterPerformance = {
   totalSold: number;
   tablesCharged: number;
   waitersWithSales: number;
   forcedCharges: number;
+  offlineCharges: number;
   ranking: { waiter: string; tables: number; total: number }[];
-  tables: { table: string; waiter: string; chargedBy: string; total: number; forced: boolean; closedAt: Date | null }[];
+  tables: {
+    table: string;
+    label: string;
+    waiter: string;
+    chargedBy: string;
+    total: number;
+    forced: boolean;
+    offline: boolean;
+    closedAt: Date | null;
+  }[];
+  issues: ChargeIssue[];
 };
+
+function toDate(value: unknown) {
+  const date = new Date(asString(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 export async function getWaiterPerformance(period: WaiterPeriod, signal?: AbortSignal): Promise<WaiterPerformance> {
   const body: Json = unwrap(await request<unknown>(`${ADMIN}/waiters/performance?period=${period}`, { auth: true, signal }));
@@ -228,6 +257,7 @@ export async function getWaiterPerformance(period: WaiterPeriod, signal?: AbortS
     tablesCharged: asNumber(pick(summary, 'tables_charged', 'mesas_cobradas')),
     waitersWithSales: asNumber(pick(summary, 'waiters_with_sales', 'meseros_con_ventas')),
     forcedCharges: asNumber(pick(summary, 'forced_charges', 'cobros_forzados')),
+    offlineCharges: asNumber(pick(summary, 'offline_charges')),
     ranking: asArray(pick(body, 'ranking') ?? []).map((raw) => {
       const obj = asObject(raw) ?? {};
       return {
@@ -238,14 +268,28 @@ export async function getWaiterPerformance(period: WaiterPeriod, signal?: AbortS
     }),
     tables: asArray(pick(body, 'tables', 'mesas') ?? []).map((raw) => {
       const obj = asObject(raw) ?? {};
-      const closed = new Date(asString(pick(obj, 'closed_at', 'cobrada_en')));
       return {
         table: asString(pick(obj, 'table', 'mesa')),
+        label: asString(obj.label),
         waiter: asString(pick(obj, 'waiter', 'mesero')),
         chargedBy: asString(pick(obj, 'charged_by', 'cobro')),
         total: asNumber(pick(obj, 'total')),
         forced: Boolean(pick(obj, 'forced', 'forzado')),
-        closedAt: Number.isNaN(closed.getTime()) ? null : closed,
+        offline: Boolean(obj.offline),
+        closedAt: toDate(pick(obj, 'closed_at', 'cobrada_en')),
+      };
+    }),
+    issues: asArray(pick(body, 'issues') ?? []).map((raw) => {
+      const obj = asObject(raw) ?? {};
+      return {
+        table: asString(obj.table),
+        waiter: asString(obj.waiter),
+        status: asString(obj.status) === 'conflict' ? 'conflict' : 'discrepancy',
+        offline: Boolean(obj.offline),
+        totalDue: asNumber(obj.total_due),
+        amountReceived: asNumber(obj.amount_received),
+        notes: asString(obj.notes),
+        chargedAt: toDate(obj.charged_at),
       };
     }),
   };
