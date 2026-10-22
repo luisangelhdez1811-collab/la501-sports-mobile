@@ -1,4 +1,4 @@
-import { request } from './client';
+import { ApiError, request } from './client';
 import { asArray, asNumber, asObject, asString, pick, unwrap } from './parse';
 
 export type OrderStatus =
@@ -19,6 +19,15 @@ export type OrderSummary = {
   trackingToken: string | null;
 };
 
+/** Oposición (ARCO): secondary uses of the customer's data they can switch off. */
+export type Privacy = {
+  promoEmail: boolean;
+  /** Off until the customer turns it on. */
+  promoSms: boolean;
+  /** Recommendations based on their past orders; on unless they oppose. */
+  personalizedRecommendations: boolean;
+};
+
 export type Account = {
   phone: string;
   memberSince: Date | null;
@@ -26,6 +35,8 @@ export type Account = {
   achievements: number;
   reservations: number;
   promoSubscribed: boolean;
+  /** null: the server doesn't offer the privacy preferences yet. */
+  privacy: Privacy | null;
   recentOrders: OrderSummary[];
 };
 
@@ -71,20 +82,48 @@ export function toOrders(data: unknown): OrderSummary[] {
   return source.map(toOrder).filter((o): o is OrderSummary => o !== null);
 }
 
+// The server answers at /profile (ARCO names) and, before that update, only at /account.
+const notOnServer = (err: unknown) => err instanceof ApiError && (err.status === 404 || err.status === 405);
+
+async function profileRequest<T>(options: Parameters<typeof request>[1] = {}) {
+  try {
+    return await request<T>('/app/profile', options);
+  } catch (err) {
+    if (notOnServer(err)) return request<T>('/app/account', options);
+    throw err;
+  }
+}
+
+function toPrivacy(raw: unknown): Privacy | null {
+  const obj = asObject(raw);
+  // Without these fields it isn't the preferences (e.g. a bare `{ success: true }`).
+  if (!obj || !('promos_sms' in obj) || !('recomendaciones_personalizadas' in obj)) return null;
+  return {
+    promoEmail: Boolean(obj.promos_correo),
+    promoSms: Boolean(obj.promos_sms),
+    personalizedRecommendations: obj.recomendaciones_personalizadas !== false,
+  };
+}
+
+/** Acceso (ARCO): GET /profile. */
 export async function getAccount(signal?: AbortSignal): Promise<Account> {
-  const data = unwrap(await request<unknown>('/app/account', { auth: true, signal }));
+  const data = unwrap(await profileRequest<unknown>({ auth: true, signal }));
   const user = asObject(data.user) ?? data;
   const stats = asObject(data.stats) ?? data;
+  const privacy = toPrivacy(data.privacy);
   return {
     phone: asString(pick(user, 'telefono', 'phone') ?? pick(data, 'telefono', 'phone')),
     memberSince: toDate(pick(user, 'created_at', 'member_since') ?? data.member_since),
     points: asNumber(pick(stats, 'points', 'puntos') ?? user.points),
     achievements: asNumber(pick(stats, 'achievements', 'achievements_count', 'logros')),
     reservations: asNumber(pick(stats, 'reservations', 'reservations_count', 'reservas')),
-    promoSubscribed: Boolean(
-      pick(data, 'promo_subscription', 'promo_subscribed') ??
-        pick(user, 'promo_subscription', 'promo_subscribed'),
-    ),
+    promoSubscribed:
+      privacy?.promoEmail ??
+      Boolean(
+        pick(data, 'subscribed_to_promos', 'promo_subscription', 'promo_subscribed') ??
+          pick(user, 'subscribed_to_promos', 'promo_subscription', 'promo_subscribed'),
+      ),
+    privacy,
     recentOrders: toOrders(pick(data, 'orders', 'recent_orders') ?? []),
   };
 }
@@ -106,11 +145,11 @@ export async function updatePhone(phone: string, code: string) {
 // ---- Derechos ARCO ----
 
 /**
- * Rectificación: corrects name and email. `phone` must be the current one: a new number
- * goes through requestPhoneOtp + updatePhone.
+ * Rectificación (PUT /profile): corrects name and email. `phone` must be the current one:
+ * a new number goes through requestPhoneOtp + updatePhone.
  */
 export async function updateProfile(input: { name: string; email: string; phone: string }) {
-  await request('/app/account', {
+  await profileRequest({
     method: 'PUT',
     auth: true,
     body: {
@@ -122,7 +161,23 @@ export async function updateProfile(input: { name: string; email: string; phone:
 }
 
 /**
- * Cancelación: deletes the account and its personal data on the server. The password is
+ * Oposición (PUT /profile/privacy): changes only the preferences sent and returns all of
+ * them as the server saved them.
+ */
+export async function updatePrivacy(changes: Partial<Privacy>): Promise<Privacy> {
+  const body: Record<string, boolean> = {};
+  if (changes.promoEmail !== undefined) body.promos_correo = changes.promoEmail;
+  if (changes.promoSms !== undefined) body.promos_sms = changes.promoSms;
+  if (changes.personalizedRecommendations !== undefined) {
+    body.recomendaciones_personalizadas = changes.personalizedRecommendations;
+  }
+  const saved = toPrivacy(unwrap(await request<unknown>('/app/profile/privacy', { method: 'PUT', auth: true, body })));
+  if (!saved) throw new ApiError('El servidor no confirmó tus preferencias. Intenta de nuevo.', 0);
+  return saved;
+}
+
+/**
+ * Cancelación (DELETE /account): deletes the account and its personal data on the server. The password is
  * asked again so a borrowed, unlocked phone can't erase someone's account.
  */
 export async function deleteAccount(password: string) {

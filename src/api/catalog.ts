@@ -196,12 +196,17 @@ export async function getProductIngredients(id: number, signal?: AbortSignal): P
   return (await getProductDetail(id, signal)).ingredients;
 }
 
-/** "Popular entre nuestros visitantes", based on what's already in the cart. */
-export async function getRecommendations(cartIds: number[], signal?: AbortSignal) {
+export type Recommendations = { personalized: boolean; products: Product[] };
+
+/**
+ * Suggestions for the cart. With a session the server may use the customer's past orders,
+ * unless they turned off "Recomendaciones según mis pedidos" (Oposición, ARCO).
+ */
+export async function getRecommendations(cartIds: number[], signal?: AbortSignal): Promise<Recommendations> {
   const ids = cartIds.filter((id) => Number.isInteger(id)).join(',');
-  const body = unwrap(await request<unknown>(`/app/recommendations?cart_ids=${ids}`, { signal }));
+  const body = unwrap(await request<unknown>(`/app/recommendations?cart_ids=${ids}`, { auth: true, signal }));
   // Response: { data: { strategy, title, products: [...] } }
-  return toProducts(body.products ?? body);
+  return { personalized: body.strategy === 'user_history', products: toProducts(body.products ?? body) };
 }
 
 const shortDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
