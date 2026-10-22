@@ -3,14 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import {
-  discardRejectedOrder,
-  dismissNotices,
-  loadOutbox,
-  retryEntry,
-  syncOutbox,
-  useOutbox,
-} from '@/data/waiter-outbox';
+import { discardRejectedOrder, loadOutbox, retryEntry, syncOutbox, useOutbox } from '@/data/waiter-outbox';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useIsOffline } from '@/hooks/use-connectivity';
@@ -20,7 +13,7 @@ const RETRY_MS = 30_000;
 const AMBER = '#F59E0B';
 
 /**
- * Sends the waiter's saved orders and charges in the background: right away, when the
+ * Sends the waiter's saved orders in the background: right away, when the
  * connection comes back, when the app returns to the foreground and every 30 s while
  * anything is pending. Renders nothing; mounted once in the waiter's layout.
  */
@@ -55,19 +48,19 @@ export function OutboxSync() {
 }
 
 /**
- * What's waiting to reach the server, always visible on the waiter's screens while there's
- * anything: the restaurant must know nothing was lost.
+ * Orders waiting to reach the server, visible on the waiter's screens while there are any,
+ * so the waiter knows to tell the kitchen in person.
  */
 export function OutboxBanner({ tableId }: { tableId?: number }) {
   const { colors } = useBrandTheme();
   const { user } = useAuth();
   const offline = useIsOffline();
-  const { entries, syncing, notices } = useOutbox();
+  const { entries, syncing } = useOutbox();
   const mine = entries.filter((e) => e.owner === user?.email && (tableId === undefined || e.tableId === tableId));
   const rejected = mine.filter((e) => e.error);
   const waiting = mine.length - rejected.length;
 
-  if (mine.length === 0 && notices.length === 0) return null;
+  if (mine.length === 0) return null;
 
   return (
     <View style={styles.stack}>
@@ -82,12 +75,12 @@ export function OutboxBanner({ tableId }: { tableId?: number }) {
           )}
           <Text style={[styles.text, { color: colors.text }]}>
             <Text style={styles.strong}>
-              {waiting} {waiting === 1 ? 'operación guardada' : 'operaciones guardadas'} en el teléfono.{' '}
+              {waiting} {waiting === 1 ? 'pedido guardado' : 'pedidos guardados'} en el teléfono.{' '}
             </Text>
             {syncing
               ? 'Enviando al sistema…'
               : offline
-                ? 'Se enviarán solas al volver el internet. No cierres sesión.'
+                ? 'Se envían solos al volver el internet.'
                 : 'Reintentando el envío…'}
           </Text>
         </View>
@@ -97,7 +90,7 @@ export function OutboxBanner({ tableId }: { tableId?: number }) {
         <View key={entry.ref} style={[styles.banner, styles.column, { borderColor: `${Brand.red}66`, backgroundColor: `${Brand.red}12` }]}>
           <Text style={[styles.text, { color: colors.text }]}>
             <Text style={styles.strong}>
-              {entry.kind === 'order' ? 'Pedido' : 'Cobro'} de mesa {entry.tableNumber} ({entry.label},{' '}
+              Pedido de mesa {entry.tableNumber} ({entry.label},{' '}
               {formatMoney(entry.total)}) no se registró:{' '}
             </Text>
             {entry.error}
@@ -106,27 +99,12 @@ export function OutboxBanner({ tableId }: { tableId?: number }) {
             <Pressable accessibilityRole="button" onPress={() => retryEntry(entry.ref)} hitSlop={6}>
               <Text style={[styles.action, { color: Brand.blue }]}>Reintentar</Text>
             </Pressable>
-            {entry.kind === 'order' && (
-              <Pressable accessibilityRole="button" onPress={() => discardRejectedOrder(entry.ref)} hitSlop={6}>
-                <Text style={[styles.action, { color: Brand.red }]}>Descartar pedido</Text>
-              </Pressable>
-            )}
+            <Pressable accessibilityRole="button" onPress={() => discardRejectedOrder(entry.ref)} hitSlop={6}>
+              <Text style={[styles.action, { color: Brand.red }]}>Descartar pedido</Text>
+            </Pressable>
           </View>
         </View>
       ))}
-
-      {notices.length > 0 && (
-        <View style={[styles.banner, styles.column, { borderColor: `${Brand.blue}66`, backgroundColor: `${Brand.blue}12` }]}>
-          {notices.map((notice) => (
-            <Text key={notice} style={[styles.text, { color: colors.text }]}>
-              {notice}
-            </Text>
-          ))}
-          <Pressable accessibilityRole="button" onPress={dismissNotices} hitSlop={6} style={styles.actions}>
-            <Text style={[styles.action, { color: Brand.blue }]}>Entendido</Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 }

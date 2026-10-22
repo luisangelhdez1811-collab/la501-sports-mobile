@@ -1,58 +1,45 @@
 import { useSyncExternalStore } from 'react';
 
 import { ApiError, errorMessage } from '@/api/client';
-import { chargeTable, sendToKitchen, type KitchenItem, type Payment } from '@/api/waiter';
+import { sendToKitchen, type KitchenItem } from '@/api/waiter';
 import { readCache, writeCache } from '@/utils/offline-cache';
 
 /**
- * Orders and charges the waiter made while the server couldn't be reached. They're saved
- * on the phone the moment they happen and sent in the same order once there's a
- * connection, each with its own reference so the server never registers one twice.
- *
- * It's the restaurant's record of money collected, so the waiter can't delete it: a charge
- * stays until the server confirms it, and signing out is blocked while anything is pending.
- * Only an order the server rejected can be discarded (no money involved).
+ * Orders the waiter took while the server couldn't be reached. They're saved on the phone
+ * the moment they're taken and sent in the same order once there's a connection, each with
+ * its own reference so the server never registers one twice. Charging always needs a
+ * connection, so only orders (no money) ever wait here.
  */
 
 export type OutboxItem = KitchenItem & { name: string; price: number };
 
-type OutboxBase = {
+export type OutboxOrder = {
   ref: string;
   tableId: number;
   tableNumber: string;
-  /** Diner ("Persona 1") or "Mesa completa" for a charge of everything. */
+  /** Diner ("Persona 1") or the name the waiter typed. */
   label: string;
+  items: OutboxItem[];
   /** Estimate from the menu prices on the phone; the server recalculates it. */
   total: number;
   createdAt: string;
-  /** Email of the waiter who did it: only their session sends it. */
+  /** Email of the waiter who took it: only their session sends it. */
   owner: string;
   attempts: number;
-  /** The server rejected it; it waits for the waiter to retry (or discard, for orders). */
+  /** The server rejected it; it waits for the waiter to retry or discard it. */
   error: string | null;
 };
 
-export type OutboxOrder = OutboxBase & { kind: 'order'; items: OutboxItem[] };
-export type OutboxCharge = OutboxBase & {
-  kind: 'charge';
-  payments: Payment[];
-  orderIds: number[];
-  orderRefs: string[];
-};
-export type OutboxEntry = OutboxOrder | OutboxCharge;
-
-type NewEntry = Omit<OutboxOrder, 'attempts' | 'error'> | Omit<OutboxCharge, 'attempts' | 'error'>;
+type NewOrder = Omit<OutboxOrder, 'attempts' | 'error'>;
 
 type OutboxState = {
-  entries: OutboxEntry[];
+  entries: OutboxOrder[];
   syncing: boolean;
-  /** Messages for the waiter about charges the server flagged for the admin. */
-  notices: string[];
 };
 
 const DISK_KEY = 'waiter-outbox';
 
-let state: OutboxState = { entries: [], syncing: false, notices: [] };
+let state: OutboxState = { entries: [], syncing: false };
 let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
@@ -61,8 +48,8 @@ function setState(patch: Partial<OutboxState>) {
   listeners.forEach((listener) => listener());
 }
 
-function setEntries(entries: OutboxEntry[]) {
-  // Written right away (synchronously): money collected must survive the app closing.
+function setEntries(entries: OutboxOrder[]) {
+  // Written right away (synchronously): an order must survive the app closing.
   writeCache(DISK_KEY, entries);
   setState({ entries });
 }
@@ -74,20 +61,22 @@ export function newRef(prefix: 'pedido' | 'cobro') {
 }
 
 export function loadOutbox() {
-  loading ??= readCache<OutboxEntry[]>(DISK_KEY).then((saved) => {
+  loading ??= readCache<OutboxOrder[]>(DISK_KEY).then((saved) => {
     if (!saved || !Array.isArray(saved.data)) return;
+    // Only orders: anything else saved by an older version of the app is ignored.
+    const orders = saved.data.filter((e) => Array.isArray(e?.items));
     // Anything queued before the saved copy finished loading goes after it.
-    const known = new Set(saved.data.map((e) => e.ref));
-    setEntries([...saved.data, ...state.entries.filter((e) => !known.has(e.ref))]);
+    const known = new Set(orders.map((e) => e.ref));
+    setEntries([...orders, ...state.entries.filter((e) => !known.has(e.ref))]);
   });
   return loading;
 }
 
-export function enqueue(entry: NewEntry) {
-  setEntries([...state.entries, { ...entry, attempts: 0, error: null } as OutboxEntry]);
+export function enqueue(order: NewOrder) {
+  setEntries([...state.entries, { ...order, attempts: 0, error: null }]);
 }
 
-function update(ref: string, patch: Partial<OutboxBase>) {
+function update(ref: string, patch: Partial<OutboxOrder>) {
   setEntries(state.entries.map((e) => (e.ref === ref ? { ...e, ...patch } : e)));
 }
 
@@ -95,35 +84,14 @@ function remove(ref: string) {
   setEntries(state.entries.filter((e) => e.ref !== ref));
 }
 
-async function send(entry: OutboxEntry) {
-  if (entry.kind === 'order') {
-    await sendToKitchen(entry.tableId, {
-      items: entry.items,
-      label: entry.label,
-      clientRef: entry.ref,
-      offline: true,
-      createdAt: entry.createdAt,
-    });
-    return;
-  }
-  const status = await chargeTable(entry.tableId, {
-    payments: entry.payments,
-    orderIds: entry.orderIds,
-    orderRefs: entry.orderRefs,
-    clientRef: entry.ref,
+function send(order: OutboxOrder) {
+  return sendToKitchen(order.tableId, {
+    items: order.items,
+    label: order.label,
+    clientRef: order.ref,
     offline: true,
-    chargedAt: entry.createdAt,
+    createdAt: order.createdAt,
   });
-  if (status !== 'applied') {
-    setState({
-      notices: [
-        ...state.notices,
-        status === 'conflict'
-          ? `El cobro de la mesa ${entry.tableNumber} se guardó, pero la mesa ya estaba cobrada. Quedó para revisión del administrador.`
-          : `El cobro de la mesa ${entry.tableNumber} se guardó con un monto menor al total. Quedó para revisión del administrador.`,
-      ],
-    });
-  }
 }
 
 // Worth retrying later on their own: no connection, server down, rate limit, session.
@@ -131,9 +99,9 @@ const isTemporary = (err: unknown) =>
   err instanceof ApiError && (err.status === 0 || err.status === 401 || err.status === 429 || err.status >= 500);
 
 /**
- * Sends everything this user has pending, oldest first. Stops at the first temporary
- * failure (the rest would fail the same way, and order matters: a charge goes after the
- * orders it pays). Safe to call often; only one run at a time.
+ * Sends every order this user has pending, oldest first. Stops at the first temporary
+ * failure (the rest would fail the same way, and the kitchen gets them in order). Safe to
+ * call often; only one run at a time.
  */
 export async function syncOutbox(owner: string | null) {
   if (state.syncing || !owner) return;
@@ -168,14 +136,9 @@ export function retryEntry(ref: string) {
   update(ref, { error: null });
 }
 
-/** Only a rejected order (nothing was charged); a charge always stays until it's sent. */
+/** Only an order the server rejected; one still waiting for a connection stays. */
 export function discardRejectedOrder(ref: string) {
-  const entry = state.entries.find((e) => e.ref === ref);
-  if (entry?.kind === 'order' && entry.error) remove(ref);
-}
-
-export function dismissNotices() {
-  setState({ notices: [] });
+  if (state.entries.find((e) => e.ref === ref)?.error) remove(ref);
 }
 
 export function pendingCount(owner: string | null) {

@@ -19,8 +19,9 @@ function assertRegistered(data: unknown) {
  * token; the server checks the role and recalculates every amount from the database (the
  * app never decides prices).
  *
- * Orders and charges carry a `clientRef` generated on the phone, so one saved while
- * offline can be re-sent safely: the server registers it only once.
+ * Orders and charges carry a `clientRef` generated on the phone, so re-sending one (an
+ * order saved offline, a charge retried after the connection dropped) is safe: the server
+ * registers it only once.
  */
 
 const WAITER = '/app/waiter';
@@ -90,7 +91,7 @@ export type TableOrderItem = { name: string; quantity: number; price: number; no
 export type TableOrder = {
   /** Server id; null while it's only saved on the phone (not sent yet). */
   id: number | null;
-  /** Phone-generated reference; how unsent orders and charges point to it. */
+  /** Phone-generated reference; how an order saved on the phone is recognized once sent. */
   ref: string | null;
   label: string;
   total: number;

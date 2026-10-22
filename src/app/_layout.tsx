@@ -102,7 +102,7 @@ function RootNavigator() {
             </Stack.Protected>
           </Stack>
           <NavDrawer />
-          {/* Sends the waiter's orders and charges saved without a connection. */}
+          {/* Sends the waiter's orders saved without a connection. */}
           {isWaiter && <OutboxSync />}
         </>
       )}

@@ -26,8 +26,8 @@ type Filter = 'todas' | 'ocupadas' | 'libres';
 
 /**
  * Waiter home: every table at a glance. Tapping a table opens its order; occupied tables
- * can be charged from here. The last known map is saved on the phone, so it keeps working
- * without internet (orders and charges then wait in the outbox).
+ * can be charged from here (with internet). The last known map is saved on the phone, so
+ * orders can still be taken without internet (they wait in the outbox).
  */
 export default function TablesMapScreen() {
   const { colors } = useBrandTheme();
@@ -107,7 +107,8 @@ export default function TablesMapScreen() {
       <OfflineBanner stale={map.stale} onRetry={reload} />
       {(offline || map.stale) && !!map.data && (
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Mostrando el último estado guardado. Puedes seguir tomando pedidos y cobrando: todo se guarda en el teléfono.
+          Mostrando el último estado guardado. Puedes seguir tomando pedidos: se guardan en el teléfono y se envían
+          solos al volver el internet. Para cobrar necesitas conexión.
         </Text>
       )}
       <OutboxBanner />

@@ -63,13 +63,6 @@ export default function WaiterPerformanceScreen() {
           icon={{ ios: 'exclamationmark.shield', android: 'gpp_maybe', web: 'gpp_maybe' }}
           color={Brand.red}
         />
-        <StatCard
-          accent
-          label="Cobros sin conexión"
-          value={data ? String(data.offlineCharges) : '—'}
-          icon={{ ios: 'wifi.slash', android: 'wifi_off', web: 'wifi_off' }}
-          color={AdminColors.yellow}
-        />
       </StatGrid>
 
       {!!data && data.issues.length > 0 && (

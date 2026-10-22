@@ -1,6 +1,6 @@
 /**
- * Pruebas de integración del trabajo del mesero sin conexión: acciones + cola de envío +
- * cliente HTTP, con fetch y el almacenamiento del teléfono simulados.
+ * Pruebas de integración del trabajo del mesero: pedidos sin conexión (cola de envío) y
+ * cobros solo con internet, con fetch y el almacenamiento del teléfono simulados.
  */
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
@@ -80,84 +80,69 @@ describe('pedidos a cocina', () => {
   });
 });
 
-describe('cobros sin conexión', () => {
-  it('se guardan sin la contraseña y se envían marcados como offline al volver el internet', async () => {
-    const { chargeOrders, syncOutbox, pendingCount } = cargar();
+describe('cobros (solo con internet)', () => {
+  const cobro = {
+    tableId: 4,
+    ref: 'cobro-prueba-1',
+    orders: [{ id: 21 }],
+    payments: [{ method: 'efectivo' as const, amount: 300 }],
+  };
 
-    const resultado = await chargeOrders({
-      tableId: 4,
-      tableNumber: '4',
-      label: 'Mesa completa',
-      orders: [{ id: 21, ref: null, total: 300 }],
-      payments: [{ method: 'efectivo', amount: 300 }],
-      owner: MESERO,
-      offline: true,
-      forced: { reason: 'Cocina sin sistema', password: 'secreta' },
-    });
-
-    expect(resultado).toEqual({ delivery: 'saved' });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(JSON.stringify(mockDisco.get('waiter-outbox'))).not.toContain('secreta');
-
+  it('con internet se envían de inmediato y no se guarda nada en el teléfono', async () => {
+    const { chargeOrders, pendingCount } = cargar();
     fetchMock.mockResolvedValueOnce(respuesta(201, { success: true, data: { status: 'applied' } }));
-    await syncOutbox(MESERO);
 
+    const estado = await chargeOrders(cobro);
+
+    expect(estado).toBe('applied');
     const enviado = cuerpo(0);
-    expect(enviado.offline).toBe(true);
+    expect(enviado.offline).toBe(false);
     expect(enviado.order_ids).toEqual([21]);
-    expect(enviado.client_ref).toMatch(/^cobro-/);
-    expect(enviado.password).toBeNull();
+    expect(enviado.client_ref).toBe('cobro-prueba-1');
     expect(pendingCount(MESERO)).toBe(0);
+    expect(mockDisco.has('waiter-outbox')).toBe(false);
   });
 
-  it('un cobro que el servidor marca para revisión avisa al mesero', async () => {
-    const { chargeOrders, syncOutbox, pendingCount, outboxSnapshot } = cargar();
-    await chargeOrders({
-      tableId: 4,
-      tableNumber: '4',
-      label: 'Mesa completa',
-      orders: [{ id: 21, ref: null, total: 300 }],
-      payments: [{ method: 'efectivo', amount: 300 }],
-      owner: MESERO,
-      offline: true,
-    });
+  it('sin red falla con un mensaje claro y no se guarda en el teléfono', async () => {
+    const { chargeOrders, CHARGE_NEEDS_CONNECTION } = cargar();
+    fetchMock.mockImplementationOnce(sinRed);
 
-    fetchMock.mockResolvedValueOnce(respuesta(201, { success: true, data: { status: 'conflict' } }));
-    await syncOutbox(MESERO);
+    await expect(chargeOrders(cobro)).rejects.toThrow(CHARGE_NEEDS_CONNECTION);
+    expect(mockDisco.has('waiter-outbox')).toBe(false);
+  });
 
-    expect(pendingCount(MESERO)).toBe(0);
-    const avisos = outboxSnapshot().notices;
-    expect(avisos).toHaveLength(1);
-    expect(avisos[0]).toContain('mesa 4');
-    expect(avisos[0]).toContain('revisión del administrador');
+  it('reintentar la misma cuenta usa la misma referencia, para no cobrar dos veces', async () => {
+    const { chargeOrders } = cargar();
+    fetchMock.mockImplementationOnce(sinRed).mockResolvedValueOnce(respuesta(201, { success: true, data: { status: 'applied' } }));
+
+    await expect(chargeOrders(cobro)).rejects.toThrow();
+    await chargeOrders(cobro);
+
+    expect(cuerpo(1).client_ref).toBe('cobro-prueba-1');
+  });
+
+  it('no cobra pedidos que todavía están guardados en el teléfono', async () => {
+    const { chargeOrders, CHARGE_NEEDS_SENT_ORDERS } = cargar();
+
+    await expect(chargeOrders({ ...cobro, orders: [{ id: 21 }, { id: null }] })).rejects.toThrow(CHARGE_NEEDS_SENT_ORDERS);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
 describe('cola de envío', () => {
-  it('envía en orden: primero el pedido y después el cobro que lo paga', async () => {
-    const { placeKitchenOrder, chargeOrders, syncOutbox, pendingCount } = cargar();
+  it('envía los pedidos guardados en el orden en que se tomaron', async () => {
+    const { placeKitchenOrder, syncOutbox, pendingCount } = cargar();
     await placeKitchenOrder({ tableId: 5, tableNumber: '5', label: 'Persona 1', items: [hamburguesa], owner: MESERO, offline: true });
-    const pedido = (mockDisco.get('waiter-outbox') as { ref: string }[])[0];
-    await chargeOrders({
-      tableId: 5,
-      tableNumber: '5',
-      label: 'Persona 1',
-      orders: [{ id: null, ref: pedido.ref, total: 300 }],
-      payments: [{ method: 'tarjeta', amount: 300 }],
-      owner: MESERO,
-      offline: true,
-    });
+    await placeKitchenOrder({ tableId: 5, tableNumber: '5', label: 'Persona 2', items: [hamburguesa], owner: MESERO, offline: true });
 
-    fetchMock
-      .mockResolvedValueOnce(respuesta(201))
-      .mockResolvedValueOnce(respuesta(201, { success: true, data: { status: 'applied' } }));
+    fetchMock.mockResolvedValueOnce(respuesta(201)).mockResolvedValueOnce(respuesta(201));
     await syncOutbox(MESERO);
 
-    const [urlPedido] = fetchMock.mock.calls[0] as [string];
-    const [urlCobro] = fetchMock.mock.calls[1] as [string];
-    expect(urlPedido).toMatch(/\/tables\/5\/orders$/);
-    expect(urlCobro).toMatch(/\/tables\/5\/charge$/);
-    expect(cuerpo(1).order_refs).toEqual([pedido.ref]);
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toMatch(/\/tables\/5\/orders$/);
+    expect(cuerpo(0).label).toBe('Persona 1');
+    expect(cuerpo(0).offline).toBe(true);
+    expect(cuerpo(1).label).toBe('Persona 2');
     expect(pendingCount(MESERO)).toBe(0);
   });
 
@@ -200,28 +185,19 @@ describe('cola de envío', () => {
     expect(pendingCount(MESERO)).toBe(1);
   });
 
-  it('un pedido rechazado por el servidor se puede descartar, un cobro no', async () => {
-    const { placeKitchenOrder, chargeOrders, syncOutbox, discardRejectedOrder, pendingCount } = cargar();
+  it('un pedido rechazado por el servidor se puede descartar; uno en espera de red, no', async () => {
+    const { placeKitchenOrder, syncOutbox, discardRejectedOrder, pendingCount } = cargar();
     await placeKitchenOrder({ tableId: 6, tableNumber: '6', label: 'Persona 1', items: [hamburguesa], owner: MESERO, offline: true });
-    await chargeOrders({
-      tableId: 6,
-      tableNumber: '6',
-      label: 'Mesa completa',
-      orders: [{ id: 30, ref: null, total: 150 }],
-      payments: [{ method: 'efectivo', amount: 150 }],
-      owner: MESERO,
-      offline: true,
-    });
+    await placeKitchenOrder({ tableId: 6, tableNumber: '6', label: 'Persona 2', items: [hamburguesa], owner: MESERO, offline: true });
 
-    fetchMock
-      .mockResolvedValueOnce(respuesta(422, { message: 'Datos inválidos.' }))
-      .mockResolvedValueOnce(respuesta(422, { message: 'Datos inválidos.' }));
+    fetchMock.mockResolvedValueOnce(respuesta(422, { message: 'Datos inválidos.' })).mockImplementation(sinRed);
     await syncOutbox(MESERO);
 
-    const [pedido, cobro] = mockDisco.get('waiter-outbox') as { ref: string; error: string }[];
-    expect(pedido.error).toBe('Datos inválidos.');
-    discardRejectedOrder(pedido.ref);
-    discardRejectedOrder(cobro.ref);
+    const [rechazado, enEspera] = mockDisco.get('waiter-outbox') as { ref: string; error: string | null }[];
+    expect(rechazado.error).toBe('Datos inválidos.');
+    expect(enEspera.error).toBeNull();
+    discardRejectedOrder(rechazado.ref);
+    discardRejectedOrder(enEspera.ref);
 
     expect(pendingCount(MESERO)).toBe(1);
   });

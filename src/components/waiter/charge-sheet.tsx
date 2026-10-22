@@ -19,9 +19,8 @@ import { formatMoney } from '@/components/account/orders-list';
 import { FormMessage } from '@/components/brand/form-message';
 import { TextField } from '@/components/brand/text-field';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { chargeOrders } from '@/data/waiter-actions';
-import { useOutbox } from '@/data/waiter-outbox';
-import { useAuth } from '@/hooks/use-auth';
+import { chargeOrders, CHARGE_NEEDS_CONNECTION, CHARGE_NEEDS_SENT_ORDERS } from '@/data/waiter-actions';
+import { newRef, useOutbox } from '@/data/waiter-outbox';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useIsOffline } from '@/hooks/use-connectivity';
@@ -53,15 +52,15 @@ function separateBills(orders: TableOrder[]): Bill[] {
 type ChargeSheetProps = {
   table: { id: number; number: string; total: number; kitchenPending: boolean };
   onClose: () => void;
-  /** After the last bill; `summary` says what happened (sent, saved offline, flagged). */
+  /** After the last bill; `summary` says what happened (charged, or flagged for the admin). */
   onDone: (summary: string) => void;
 };
 
 /**
  * "Cobrar mesa": when the table has several diners, first ask whether they pay together or
  * separately. Separately goes through each diner's order in the order it was taken; closing
- * the sheet halfway leaves the rest open. Works offline: each charge is saved on the phone
- * and sent later, flagged for the admin.
+ * the sheet halfway leaves the rest open. Charging needs a connection: the server confirms
+ * every charge before the table is freed (orders, instead, can be taken offline).
  */
 export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
   const { colors } = useBrandTheme();
@@ -76,7 +75,7 @@ export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
   const loading = detail.data === null && detail.loading;
   const orders = detail.data
     ? openOrders(detail.data, table.id, entries)
-    : // No saved copy of this table (first time offline): charge it whole, as the map shows it.
+    : // No saved copy of this table yet: one bill, as the map shows it (charged once online).
       [{ id: null, ref: null, label: 'Mesa completa', total: table.total, kitchenPending: table.kitchenPending, items: [] }];
   const choosing = bills === null && orders.length > 1;
   const activeBills = bills ?? togetherBill(orders);
@@ -126,7 +125,6 @@ export function ChargeSheet({ table, onClose, onDone }: ChargeSheetProps) {
               key={step}
               bill={bill}
               tableId={table.id}
-              tableNumber={table.number}
               onCancel={onClose}
               onCharged={finishBill}
             />
@@ -212,43 +210,42 @@ function ModeButton({
 }
 
 /**
- * Payments for one bill: split across methods; confirming takes a second tap. Online, when
- * dishes are still in the kitchen it becomes "Forzar cobro" (reason + password, audited).
+ * Payments for one bill: split across methods; confirming takes a second tap. When dishes
+ * are still in the kitchen it becomes "Forzar cobro" (reason + password, audited).
  */
 function BillPayment({
   bill,
   tableId,
-  tableNumber,
   onCancel,
   onCharged,
 }: {
   bill: Bill;
   tableId: number;
-  tableNumber: string;
   onCancel: () => void;
   onCharged: (outcome: string) => void;
 }) {
   const { colors } = useBrandTheme();
-  const { user } = useAuth();
   const offline = useIsOffline();
+  // One reference for every attempt at this bill: retrying after a dropped connection
+  // never charges twice.
+  const [ref] = useState(() => newRef('cobro'));
   const [rows, setRows] = useState<Row[]>(() => [{ key: 0, method: 'efectivo', amount: bill.total.toFixed(2) }]);
-  // Online only: offline the kitchen's state is unknown and the server flags it instead.
-  const [forced, setForced] = useState(
-    () => !offline && !bill.orders.some((o) => o.unsent) && bill.orders.some((o) => o.kitchenPending),
-  );
+  const unsent = bill.orders.some((o) => o.id === null);
+  const [forced, setForced] = useState(() => !unsent && bill.orders.some((o) => o.kitchenPending));
   const [reason, setReason] = useState('');
   const [password, setPassword] = useState('');
   const [armed, setArmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const askForced = forced && !offline;
+  const askForced = forced;
+  const blocked = offline ? CHARGE_NEEDS_CONNECTION : unsent ? CHARGE_NEEDS_SENT_ORDERS : null;
   const paid = rows.reduce((total, row) => total + toAmount(row.amount), 0);
   const missing = cents(bill.total) - cents(paid);
   const hasCash = rows.some((row) => row.method === 'efectivo' && toAmount(row.amount) > 0);
   const covered = missing <= 0;
   const forcedReady = !askForced || (reason.trim().length >= 5 && password.length > 0);
-  const canConfirm = covered && forcedReady && !submitting && !!user;
+  const canConfirm = covered && forcedReady && !submitting && !blocked;
 
   const update = (key: number, patch: Partial<Row>) => {
     setArmed(false);
@@ -267,30 +264,23 @@ function BillPayment({
   };
 
   const confirm = async () => {
-    if (!canConfirm || !user) return;
+    if (!canConfirm) return;
     // First tap arms the button; the second one charges (it can't be undone).
     if (!armed) return setArmed(true);
     setSubmitting(true);
     setError(null);
     try {
-      const outcome = await chargeOrders({
+      const status = await chargeOrders({
         tableId,
-        tableNumber,
-        label: bill.label,
+        ref,
         orders: bill.orders,
         payments: rows
           .filter((row) => toAmount(row.amount) > 0)
           .map((row) => ({ method: row.method, amount: toAmount(row.amount) })),
-        owner: user.email,
-        offline,
         forced: askForced ? { reason, password } : undefined,
       });
       onCharged(
-        outcome.delivery === 'saved'
-          ? `${bill.label}: cobro guardado en el teléfono; se enviará al volver el internet.`
-          : outcome.status === 'applied'
-            ? `${bill.label}: cobrado.`
-            : `${bill.label}: cobrado y enviado a revisión del administrador.`,
+        status === 'applied' ? `${bill.label}: cobrado.` : `${bill.label}: cobrado y enviado a revisión del administrador.`,
       );
     } catch (err) {
       if (err instanceof ApiError && err.status === KITCHEN_PENDING_STATUS && !forced) {
@@ -316,13 +306,14 @@ function BillPayment({
   return (
     <>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-        {offline && (
+        {!!blocked && (
           <View style={[styles.notice, { borderColor: `${AMBER}66`, backgroundColor: `${AMBER}14` }]}>
-            <SymbolView name={{ ios: 'wifi.slash', android: 'wifi_off', web: 'wifi_off' }} size={16} tintColor={AMBER} />
-            <Text style={[styles.noticeText, { color: colors.text }]}>
-              Sin conexión: el cobro se guarda en el teléfono con tu usuario y la hora, y se envía al sistema en
-              cuanto vuelva el internet. No se puede borrar.
-            </Text>
+            <SymbolView
+              name={offline ? { ios: 'wifi.slash', android: 'wifi_off', web: 'wifi_off' } : { ios: 'tray.and.arrow.up', android: 'cloud_upload', web: 'cloud_upload' }}
+              size={16}
+              tintColor={AMBER}
+            />
+            <Text style={[styles.noticeText, { color: colors.text }]}>{blocked}</Text>
           </View>
         )}
 
@@ -466,10 +457,10 @@ function BillPayment({
               ? 'Cobrando…'
               : armed
                 ? '¿Seguro? Toca de nuevo'
-                : askForced
-                  ? 'Forzar cobro'
-                  : offline
-                    ? `Guardar cobro · ${formatMoney(bill.total)}`
+                : offline
+                  ? 'Sin conexión'
+                  : askForced
+                    ? 'Forzar cobro'
                     : `Cobrar · ${formatMoney(bill.total)}`}
           </Text>
         </Pressable>

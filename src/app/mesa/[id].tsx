@@ -178,8 +178,9 @@ export default function TakeOrderScreen() {
           {orders.length > 0 && count === 0 && (
             <Pressable
               accessibilityRole="button"
+              accessibilityHint={offline ? 'Para cobrar necesitas internet' : undefined}
               onPress={() => setCharging(true)}
-              style={({ pressed }) => [styles.chargeButton, { opacity: pressed ? 0.85 : 1 }]}>
+              style={({ pressed }) => [styles.chargeButton, { opacity: offline ? 0.5 : pressed ? 0.85 : 1 }]}>
               <Text style={styles.chargeText}>Cobrar</Text>
             </Pressable>
           )}

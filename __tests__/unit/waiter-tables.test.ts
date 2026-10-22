@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { RestaurantTable, TableDetail } from '@/api/waiter';
-import type { OutboxCharge, OutboxOrder } from '@/data/waiter-outbox';
+import type { OutboxOrder } from '@/data/waiter-outbox';
 import { nextDinerLabel, openOrders, summarize, tableView } from '@/utils/waiter-tables';
 
 const mesa = (datos: Partial<RestaurantTable> = {}): RestaurantTable => ({
@@ -18,23 +18,10 @@ const base = { tableId: 3, tableNumber: '3', createdAt: '2026-10-17T20:00:00Z', 
 
 const pedidoGuardado = (ref: string, total: number, label = 'Persona 1'): OutboxOrder => ({
   ...base,
-  kind: 'order',
   ref,
   label,
   total,
   items: [{ productId: 1, name: 'Hamburguesa', price: total, quantity: 1, excluded: [], notes: '' }],
-});
-
-const cobroGuardado = (datos: Partial<OutboxCharge>): OutboxCharge => ({
-  ...base,
-  kind: 'charge',
-  ref: 'cobro-1',
-  label: 'Mesa completa',
-  total: 0,
-  payments: [{ method: 'efectivo', amount: 0 }],
-  orderIds: [],
-  orderRefs: [],
-  ...datos,
 });
 
 describe('mesas del mesero con lo guardado sin conexión', () => {
@@ -46,21 +33,14 @@ describe('mesas del mesero con lo guardado sin conexión', () => {
     expect(vista.unsent).toBe(1);
   });
 
-  it('cobrar todo sin conexión deja la mesa libre aunque el servidor aún no lo sepa', () => {
+  it('suma los pedidos guardados a lo que la mesa ya tenía en el servidor', () => {
     const servidor = mesa({ status: 'ocupada', total: 300, ordersCount: 2 });
-    const vista = tableView(servidor, [cobroGuardado({ orderIds: [10, 11], total: 300 })]);
-
-    expect(vista.status).toBe('disponible');
-    expect(vista.total).toBe(0);
-  });
-
-  it('cobrar por separado solo descuenta la cuenta de ese comensal', () => {
-    const servidor = mesa({ status: 'ocupada', total: 300, ordersCount: 2 });
-    const vista = tableView(servidor, [cobroGuardado({ orderIds: [10], total: 120 })]);
+    const vista = tableView(servidor, [pedidoGuardado('pedido-1', 120), pedidoGuardado('pedido-2', 80, 'Persona 4')]);
 
     expect(vista.status).toBe('ocupada');
-    expect(vista.total).toBe(180);
-    expect(vista.ordersCount).toBe(1);
+    expect(vista.total).toBe(500);
+    expect(vista.ordersCount).toBe(4);
+    expect(vista.unsent).toBe(2);
   });
 
   it('ignora lo guardado de otras mesas', () => {
@@ -87,15 +67,6 @@ describe('cuentas abiertas de una mesa', () => {
 
   it('no repite un pedido que ya llegó al servidor', () => {
     expect(openOrders(detalle, 3, [pedidoGuardado('pedido-a', 150)])).toHaveLength(2);
-  });
-
-  it('quita las cuentas ya cobradas en el teléfono, por id o por referencia', () => {
-    const cuentas = openOrders(detalle, 3, [
-      pedidoGuardado('pedido-b', 80, 'Persona 3'),
-      cobroGuardado({ orderIds: [10], orderRefs: ['pedido-b'] }),
-    ]);
-
-    expect(cuentas.map((c) => c.label)).toEqual(['Persona 2']);
   });
 });
 
