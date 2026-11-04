@@ -6,7 +6,7 @@ export function WaiterAlerts() {
   return null;
 }
 
-/** Mounted for customers (signed in or not): "Tu pedido salió de cocina". Draws nothing. */
+/** Mounted for customers (signed in or not): "Tu pedido va en camino". Draws nothing. */
 export function CustomerAlerts() {
   useCustomerOrderAlerts();
   return null;

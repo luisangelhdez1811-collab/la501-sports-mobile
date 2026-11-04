@@ -156,7 +156,14 @@ Son **locales**: el teléfono revisa el pedido (cliente, cada 30 s) o las mesas 
 cada 20 s) y crea el aviso. No hay servidor de push, no se pide un token del dispositivo y
 no salen datos del teléfono, así que en «Seguridad de los datos» **no cambia nada**
 (identificadores: No). Funcionan con la app abierta o recién minimizada; con la app
-cerrada no llegan. Para avisos con la app cerrada hace falta push (Firebase Cloud Messaging
+cerrada no llegan.
+
+- **Mesero** (solo con sesión de mesero): «Mesa 5: listo para entregar» cuando cocina o
+  barra terminan algo de una de sus mesas.
+- **Cliente** (con cuenta o sin ella): un solo aviso, «Tu pedido va en camino», la primera
+  vez que el pedido aparece fuera de cocina (estado `ready` o `delivering`).
+
+Para avisos con la app cerrada hace falta push (Firebase Cloud Messaging
 y que el back mande el aviso), y entonces sí hay que declarar «ID del dispositivo».
 
 Después de cada build, revisa los permisos en el Explorador de app bundle. Si aparece uno

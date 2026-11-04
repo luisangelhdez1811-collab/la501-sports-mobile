@@ -3,7 +3,7 @@ import type { OrderStatus } from '@/api/account';
 /**
  * When the app shows a notification (domain layer, pure functions): to the waiter, when the
  * kitchen or the bar finishes dishes of one of their tables; to the customer, when the order
- * leaves the kitchen. Each change is announced once.
+ * leaves the kitchen ("va en camino"). Each change is announced once.
  */
 
 export type Notice = { title: string; body: string; url: string };
@@ -31,24 +31,21 @@ export function readyNotices(previous: Map<number, number> | null, tables: Table
 
 export const toServeByTable = (tables: TableCount[]) => new Map(tables.map((t) => [t.id, t.toServe]));
 
-// The customer is told about these steps, in this order.
-const ANNOUNCED: OrderStatus[] = ['ready', 'delivering'];
-
-const CUSTOMER_TEXT: Partial<Record<OrderStatus, { title: string; body: string }>> = {
-  ready: { title: 'Tu pedido salió de cocina', body: 'Está listo y pronto va en camino.' },
-  delivering: { title: 'Tu pedido va en camino', body: 'El repartidor ya lo lleva a tu domicilio.' },
-};
+// Once the kitchen is done the order has left it, whether or not it's already with the driver.
+const LEFT_KITCHEN: OrderStatus[] = ['ready', 'delivering'];
 
 /**
- * What to tell the customer when the order reaches `status`, given the last step already
- * announced. Steps are never announced twice nor backwards; skipping "Listo" straight to
- * "En camino" announces only "En camino".
+ * What to tell the customer when the order reaches `status`: a single notice, "va en camino",
+ * the first time it's seen out of the kitchen. `lastAnnounced` is the status that was
+ * announced (null if none yet); nothing is announced twice.
  */
 export function customerNotice(lastAnnounced: OrderStatus | null, status: OrderStatus, token: string): Notice | null {
-  const step = ANNOUNCED.indexOf(status);
-  if (step === -1 || step <= (lastAnnounced ? ANNOUNCED.indexOf(lastAnnounced) : -1)) return null;
-  const text = CUSTOMER_TEXT[status]!;
-  return { ...text, url: `/pedido/${token}` };
+  if (lastAnnounced || !LEFT_KITCHEN.includes(status)) return null;
+  return {
+    title: 'Tu pedido va en camino',
+    body: 'Ya salió de cocina. Toca para ver el seguimiento.',
+    url: `/pedido/${token}`,
+  };
 }
 
 /** Only routes the app opens from a notification it created itself. */

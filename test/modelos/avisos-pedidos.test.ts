@@ -1,6 +1,6 @@
 /**
  * Cuándo avisa la app (src/domain/order-notices): al mesero cuando cocina o barra terminan
- * platillos de una mesa, y al cliente cuando su pedido sale de cocina. Cada cambio, una vez.
+ * platillos de una mesa, y al cliente un solo aviso («va en camino») cuando su pedido sale de cocina.
  */
 import { describe, expect, it } from '@jest/globals';
 
@@ -33,18 +33,22 @@ describe('avisos al mesero', () => {
 });
 
 describe('avisos al cliente', () => {
-  it('avisa cuando sale de cocina y cuando va en camino, una vez cada uno', () => {
+  it('no avisa mientras sigue en cocina', () => {
+    expect(customerNotice(null, 'pending', 'abc123')).toBeNull();
     expect(customerNotice(null, 'preparing', 'abc123')).toBeNull();
-    expect(customerNotice(null, 'ready', 'abc123')?.title).toBe('Tu pedido salió de cocina');
-    expect(customerNotice('ready', 'ready', 'abc123')).toBeNull();
-    expect(customerNotice('ready', 'delivering', 'abc123')?.title).toBe('Tu pedido va en camino');
-    expect(customerNotice('delivering', 'ready', 'abc123')).toBeNull();
   });
 
-  it('si salta de «Listo» a «En camino», solo avisa «En camino»', () => {
-    expect(customerNotice(null, 'delivering', 'abc123')).toEqual(
+  it('un solo aviso «va en camino» cuando sale de cocina', () => {
+    expect(customerNotice(null, 'ready', 'abc123')).toEqual(
       expect.objectContaining({ title: 'Tu pedido va en camino', url: '/pedido/abc123' }),
     );
+    expect(customerNotice('ready', 'ready', 'abc123')).toBeNull();
+    expect(customerNotice('ready', 'delivering', 'abc123')).toBeNull();
+  });
+
+  it('si la app no vio «Listo» y ya está en camino, avisa igual una vez', () => {
+    expect(customerNotice(null, 'delivering', 'abc123')?.title).toBe('Tu pedido va en camino');
+    expect(customerNotice('delivering', 'delivering', 'abc123')).toBeNull();
   });
 
   it('al tocar un aviso solo abre rutas que la app creó', () => {
