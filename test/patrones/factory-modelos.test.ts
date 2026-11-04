@@ -36,6 +36,39 @@ describe('fábrica de productos (toProducts)', () => {
     expect(producto.available).toBe(false);
   });
 
+  it('lee el menú nuevo: sección, estación, presentaciones y listas de opciones', () => {
+    const [papas] = toProducts([
+      {
+        id: 48,
+        name: 'Arma tus Papas',
+        price: 95,
+        category: 'Arma tus Papas',
+        section: 'comidas',
+        station: 'cocina',
+        presentation: '350 g',
+        variants: [],
+        option_groups: [
+          { id: 21, name: 'Tipo de papa', label: 'Elige tu papa', min: 1, max: 1, max_per_option: 1, options: [{ id: 130, name: 'Francesas', detail: null, price: 0 }] },
+          // Todas sus opciones agotadas: no hay nada que elegir, así que no debe bloquear.
+          { id: 22, name: 'Sazonador', label: 'Elige tu sazonador', min: 1, max: 1, max_per_option: 1, options: [] },
+        ],
+      },
+    ]);
+
+    expect(papas).toEqual(expect.objectContaining({ section: 'comidas', station: 'cocina', presentation: '350 g' }));
+    expect(papas.optionGroups).toEqual([
+      { id: 21, name: 'Tipo de papa', label: 'Elige tu papa', min: 1, max: 1, maxPerOption: 1, options: [{ id: 130, name: 'Francesas', detail: '', price: 0 }] },
+    ]);
+  });
+
+  it('con un servidor anterior al menú nuevo, deduce la sección y deja todo lo demás vacío', () => {
+    const [corona] = toProducts([{ id: 5, name: 'Corona', price: 35, category: 'Cervezas', station: 'otra' }]);
+
+    expect(corona).toEqual(
+      expect.objectContaining({ section: 'bebidas', station: 'cocina', presentation: '', variants: [], optionGroups: [] }),
+    );
+  });
+
   it('las promociones se crean con su propio tipo y llave', () => {
     const [promo] = toProducts([{ id: 3, title: '2x1 en tacos' }], 'promotion');
 

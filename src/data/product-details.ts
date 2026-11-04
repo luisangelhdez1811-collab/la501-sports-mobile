@@ -76,9 +76,13 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** Re-renders the caller whenever more dish details become available. */
-export function useDetailsVersion() {
-  return useSyncExternalStore(subscribe, () => version);
+/**
+ * Re-renders the caller whenever more dish details become available. The background sync
+ * saves one every few seconds: pass `enabled = false` when the screen has what it needs,
+ * so it isn't redrawn for nothing.
+ */
+export function useDetailsVersion(enabled = true) {
+  return useSyncExternalStore(subscribe, () => (enabled ? version : -1));
 }
 
 /**

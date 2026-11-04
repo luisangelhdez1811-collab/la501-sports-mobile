@@ -17,10 +17,18 @@ import { useOutbox } from '@/data/waiter-outbox';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { summarize, tableView, type TableView } from '@/domain/waiter-tables';
+import { summarize, tableState, tableView, type TableState, type TableView } from '@/domain/waiter-tables';
 
 // Other waiters change tables too: refresh the map every so often while it's open.
 const REFRESH_MS = 20_000;
+const AMBER = '#F59E0B';
+
+/** Same states as the website's map. */
+const STATES: Record<TableState, { label: string; color: string }> = {
+  libre: { label: 'Libre', color: Brand.greenLight },
+  preparando: { label: 'En preparación', color: AMBER },
+  lista: { label: 'Lista para cobrar', color: Brand.greenLight },
+};
 
 type Filter = 'todas' | 'ocupadas' | 'libres';
 
@@ -57,6 +65,7 @@ export default function TablesMapScreen() {
 
   const tables = (map.data?.tables ?? []).map((table) => tableView(table, entries));
   const totals = summarize(tables);
+  const toServeTotal = tables.reduce((sum, t) => sum + t.toServe, 0);
   const visible = tables.filter((t) =>
     filter === 'todas' ? true : filter === 'ocupadas' ? t.status === 'ocupada' : t.status === 'disponible',
   );
@@ -99,7 +108,8 @@ export default function TablesMapScreen() {
         title="Mesas"
         subtitle={
           map.data
-            ? `${totals.busy} ocupadas · ${totals.free} libres · ${formatMoney(totals.openTotal)} por cobrar`
+            ? `${totals.busy} ocupadas · ${totals.free} libres · ${formatMoney(totals.openTotal)} por cobrar` +
+              (toServeTotal > 0 ? ` · ${toServeTotal} por entregar` : '')
             : 'Toma pedidos y cobra desde aquí.'
         }
       />
@@ -190,11 +200,14 @@ export default function TablesMapScreen() {
 function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () => void; onCharge: () => void }) {
   const { colors } = useBrandTheme();
   const busy = table.status === 'ocupada';
+  const state = STATES[tableState(table)];
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Mesa ${table.number}, ${busy ? `ocupada, ${formatMoney(table.total)}` : 'libre'}`}
+      accessibilityLabel={`Mesa ${table.number}, ${state.label}${busy ? `, ${formatMoney(table.total)}` : ''}${
+        table.toServe > 0 ? `, ${table.toServe} por entregar` : ''
+      }`}
       accessibilityHint={busy ? 'Agrega platillos a esta mesa' : 'Toma el pedido de esta mesa'}
       onPress={onOpen}
       style={({ pressed }) => [
@@ -213,15 +226,25 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
               <Text style={styles.badgeText}>{table.unsent}</Text>
             </View>
           )}
-          {busy && table.kitchenPending && (
-            <SymbolView name={{ ios: 'flame.fill', android: 'local_fire_department', web: 'local_fire_department' }} size={18} tintColor={Brand.orange} />
+          {table.toServe > 0 && (
+            <View style={[styles.badge, { backgroundColor: Brand.green }]} accessibilityLabel={`${table.toServe} por entregar`}>
+              <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={12} tintColor={Brand.white} />
+              <Text style={styles.badgeText}>{table.toServe}</Text>
+            </View>
           )}
         </View>
       </View>
 
-      <Text style={[styles.status, { color: busy ? Brand.orange : Brand.greenLight }]}>
-        {busy ? (table.ordersCount > 1 ? `Ocupada · ${table.ordersCount} cuentas` : 'Ocupada') : 'Libre'}
-      </Text>
+      <View style={styles.stateRow}>
+        <View style={[styles.stateDot, { backgroundColor: state.color }]} />
+        <Text style={[styles.status, { color: state.color }]} numberOfLines={1}>
+          {state.label}
+        </Text>
+      </View>
+      {busy && table.ordersCount > 1 && (
+        <Text style={[styles.accounts, { color: colors.textSecondary }]}>{table.ordersCount} cuentas</Text>
+      )}
+      {table.toServe > 0 && <Text style={styles.toServe}>{table.toServe} por entregar</Text>}
       {busy && (
         <Text style={[styles.total, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
           {formatMoney(table.total)}
@@ -347,11 +370,31 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
   },
+  stateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stateDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   status: {
+    flexShrink: 1,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  accounts: {
+    fontFamily: BrandFonts.bodyMedium,
+    fontSize: 12,
+  },
+  toServe: {
+    color: Brand.greenLight,
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 13,
   },
   total: {
     marginTop: 4,

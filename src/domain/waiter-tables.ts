@@ -1,4 +1,4 @@
-import type { RestaurantTable, TableDetail, TableOrder } from '@/api/waiter';
+import type { RestaurantTable, TableDetail, TableOrder, TableOrderItem } from '@/api/waiter';
 import type { OutboxOrder } from '@/data/waiter-outbox';
 
 /**
@@ -23,8 +23,33 @@ export function unsentOrder(entry: OutboxOrder): TableOrder {
     total: entry.total,
     kitchenPending: true,
     unsent: true,
-    items: entry.items.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price, notes: item.notes })),
+    items: entry.items.map((item) => ({
+      id: null,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      notes: item.notes,
+      optionsSummary: item.summary ?? '',
+      excluded: item.excluded.map((i) => i.name),
+      station: 'cocina',
+      status: 'preparing',
+    })),
   };
+}
+
+/** Dishes ready (or that need no preparing) still to be taken to the table, by diner. */
+export function toServe(orders: TableOrder[]): { order: TableOrder; item: TableOrderItem }[] {
+  return orders.flatMap((order) =>
+    order.items.filter((item) => item.status === 'ready' && item.id !== null).map((item) => ({ order, item })),
+  );
+}
+
+/** How the table is doing, as the website's map shows it. */
+export type TableState = 'libre' | 'preparando' | 'lista';
+
+export function tableState(table: Pick<TableView, 'status' | 'kitchenPending'>): TableState {
+  if (table.status !== 'ocupada') return 'libre';
+  return table.kitchenPending ? 'preparando' : 'lista';
 }
 
 /** The table's open orders: the server's, plus the ones saved on the phone. */

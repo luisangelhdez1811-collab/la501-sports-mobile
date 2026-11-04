@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import type { RestaurantTable, TableDetail } from '@/api/waiter';
 import type { OutboxOrder } from '@/data/waiter-outbox';
-import { nextDinerLabel, openOrders, summarize, tableView } from '@/domain/waiter-tables';
+import { nextDinerLabel, openOrders, summarize, tableState, tableView, toServe } from '@/domain/waiter-tables';
 
 const mesa = (datos: Partial<RestaurantTable> = {}): RestaurantTable => ({
   id: 3,
@@ -11,6 +11,7 @@ const mesa = (datos: Partial<RestaurantTable> = {}): RestaurantTable => ({
   total: 0,
   kitchenPending: false,
   ordersCount: 0,
+  toServe: 0,
   ...datos,
 });
 
@@ -85,5 +86,31 @@ describe('resumen y comensales', () => {
     expect(nextDinerLabel([])).toBe('Persona 1');
     expect(nextDinerLabel([{ label: 'Persona 1' }, { label: 'Ana' }])).toBe('Persona 3');
     expect(nextDinerLabel([{ label: 'Persona 4' }])).toBe('Persona 5');
+  });
+});
+
+describe('por entregar y estado de la mesa (como el mapa de la web)', () => {
+  const item = (id: number | null, status: 'preparing' | 'ready' | 'served') => ({
+    id,
+    name: 'Alitas',
+    quantity: 1,
+    price: 150,
+    notes: '',
+    optionsSummary: '',
+    excluded: [],
+    station: 'cocina' as const,
+    status,
+  });
+
+  it('solo lo listo y que viene del servidor queda por entregar', () => {
+    const pedido = { id: 1, ref: null, label: 'Persona 1', total: 450, kitchenPending: false, items: [item(10, 'ready'), item(11, 'preparing'), item(12, 'served'), item(null, 'ready')] };
+
+    expect(toServe([pedido]).map((p) => p.item.id)).toEqual([10]);
+  });
+
+  it('libre, en preparación o lista para cobrar', () => {
+    expect(tableState({ status: 'disponible', kitchenPending: false })).toBe('libre');
+    expect(tableState({ status: 'ocupada', kitchenPending: true })).toBe('preparando');
+    expect(tableState({ status: 'ocupada', kitchenPending: false })).toBe('lista');
   });
 });

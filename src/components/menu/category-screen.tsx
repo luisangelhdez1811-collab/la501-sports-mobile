@@ -52,11 +52,6 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
   const cardWidth = gridCardWidth(width);
   const [selected, setSelected] = useState<Product | null>(null);
 
-  // Subcategories come from the saved dish details until the menu endpoint sends them.
-  useDetailsVersion();
-  useEffect(() => {
-    loadDetails();
-  }, []);
   const found = categories.find((c) => c.name === nombre);
   const category = found && {
     ...found,
@@ -67,6 +62,13 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
   // Only split once every dish's subcategory is known, so a half-synced category never
   // shows a misleading partial grouping.
   const subcategoriesKnown = !!found?.products.every((p) => p.subcategory || getCachedDetail(p.id));
+  // Subcategories come from the saved dish details until the menu endpoint sends them. Only
+  // listen while some are missing: the background sync saves one every few seconds and
+  // would redraw the whole screen each time.
+  useDetailsVersion(!subcategoriesKnown);
+  useEffect(() => {
+    loadDetails();
+  }, []);
   const groups = category && subcategoriesKnown ? groupBySubcategory(category.products) : null;
   const subgroup = sub ? groups?.find((g) => g.name === sub) : undefined;
 
@@ -182,7 +184,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
       <ProductDetailSheet
         product={selected}
         onClose={() => setSelected(null)}
-        onAdd={(product, excluded, notes) => cart.add(product, { excluded, notes })}
+        onAdd={(product, excluded, notes, _quantity, selection) => cart.add(product, { excluded, notes, selection })}
       />
     </View>
   );

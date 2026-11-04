@@ -5,10 +5,13 @@ import {
   cartCount,
   cartTotal,
   changeQuantity,
+  quantityOf,
   removeItem,
+  removeOneOf,
   type AddOptions,
   type CartItem,
 } from '@/domain/cart';
+import { completeProduct } from '@/domain/menu-layout';
 import type { Product } from '@/types/product';
 import { readCache, writeCache } from '@/utils/offline-cache';
 
@@ -27,6 +30,10 @@ type CartContextValue = {
   increment: (lineId: string) => void;
   decrement: (lineId: string) => void;
   remove: (lineId: string) => void;
+  /** How many of a dish are in the cart, whatever their choices (menu card counter). */
+  quantityOf: (productKey: string) => number;
+  /** −1 on the dish's most recent line (the menu card's "−"). */
+  removeOneOf: (productKey: string) => void;
   clear: () => void;
 };
 
@@ -47,7 +54,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       restored.current = true;
       if (!saved || Date.now() - saved.savedAt > CART_TTL_MS || !Array.isArray(saved.data)) return;
       // Anything added before the saved cart loaded wins over it.
-      setItems((current) => (current.length ? current : saved.data));
+      const restoredItems = saved.data.map((item) => ({ ...item, product: completeProduct(item.product) }));
+      setItems((current) => (current.length ? current : restoredItems));
     });
   }, []);
 
@@ -63,6 +71,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     increment: (lineId) => setItems((current) => changeQuantity(current, lineId, 1)),
     decrement: (lineId) => setItems((current) => changeQuantity(current, lineId, -1)),
     remove: (lineId) => setItems((current) => removeItem(current, lineId)),
+    quantityOf: (productKey) => quantityOf(items, productKey),
+    removeOneOf: (productKey) => setItems((current) => removeOneOf(current, productKey)),
     clear: () => setItems([]),
   };
 

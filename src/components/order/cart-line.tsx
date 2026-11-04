@@ -6,6 +6,8 @@ import { formatMoney } from '@/components/account/orders-list';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { linePrice } from '@/domain/cart';
+import { displayName, EMPTY_SELECTION, optionsSummary } from '@/domain/menu-options';
 import { useCart, type CartItem } from '@/hooks/use-cart';
 import { menuImage } from '@/utils/image-source';
 
@@ -33,6 +35,10 @@ export function CartLine({ item }: { item: CartItem }) {
   const { colors } = useBrandTheme();
   const cart = useCart();
   const { product } = item;
+  const selection = item.selection ?? EMPTY_SELECTION;
+  const name = displayName(product, selection);
+  const summary = optionsSummary(product, selection);
+  const price = linePrice(item);
 
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
@@ -44,12 +50,17 @@ export function CartLine({ item }: { item: CartItem }) {
 
       <View style={styles.info}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-          {product.name}
+          {name}
         </Text>
         <Text style={[styles.unit, { color: colors.textSecondary }]}>
           {/* Offers like "2x$150" have no plain amount; the server prices them at checkout. */}
-          {product.price > 0 || !product.priceLabel ? `${formatMoney(product.price)} c/u` : `Promoción ${product.priceLabel}`}
+          {price > 0 || !product.priceLabel ? `${formatMoney(price)} c/u` : `Promoción ${product.priceLabel}`}
         </Text>
+        {!!summary && (
+          <Text style={[styles.detail, { color: Brand.orange }]} numberOfLines={3}>
+            {summary}
+          </Text>
+        )}
         {item.excluded.length > 0 && (
           <Text style={[styles.detail, { color: Brand.red }]} numberOfLines={2}>
             Sin {item.excluded.map((i) => i.name.toLowerCase()).join(', ')}
@@ -69,7 +80,7 @@ export function CartLine({ item }: { item: CartItem }) {
           <StepButton symbol="+" filled label={`Agregar otro ${product.name}`} onPress={() => cart.increment(item.lineId)} />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Eliminar ${product.name}`}
+            accessibilityLabel={`Eliminar ${name}`}
             onPress={() => cart.remove(item.lineId)}
             hitSlop={6}
             style={[styles.trash, { borderColor: colors.border }]}>

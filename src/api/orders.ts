@@ -1,7 +1,29 @@
 import type { CartItem } from '@/domain/cart';
+import { optionsPayload, type Selection } from '@/domain/menu-options';
+import type { Product } from '@/types/product';
 
 import { request } from './client';
 import { asObject, asString, pick, unwrap } from './parse';
+
+/** Whether the dish has sizes and option lists. */
+export type ChoicesOffered = { variants: boolean; options: boolean };
+
+export const offeredBy = (product: Product): ChoicesOffered => ({
+  variants: product.variants.length > 0,
+  options: product.optionGroups.length > 0,
+});
+
+/**
+ * Size and options of a line, only for dishes that have them. Sending `options` makes the
+ * server check every limit; leaving it out (dishes without lists, older servers) is
+ * accepted as is.
+ */
+export function choicesPayload(selection: Selection | undefined, offered: ChoicesOffered) {
+  return {
+    ...(offered.variants && selection?.variantId ? { variant_id: selection.variantId } : {}),
+    ...(offered.options && selection ? { options: optionsPayload(selection) } : {}),
+  };
+}
 
 export type PaymentMethod = 'efectivo' | 'tarjeta';
 
@@ -38,6 +60,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         // NOTE: confirm with the backend whether it expects ingredient ids or names.
         excluded_ingredients: item.excluded.map((ingredient) => ingredient.id ?? ingredient.name),
         notes: item.notes || null,
+        ...choicesPayload(item.selection, offeredBy(item.product)),
       })),
       customer_name: input.name.trim(),
       customer_phone: input.phone,

@@ -11,7 +11,8 @@ import { readCache, writeCache } from '@/utils/offline-cache';
  * connection, so only orders (no money) ever wait here.
  */
 
-export type OutboxItem = KitchenItem & { name: string; price: number };
+/** `name` includes the size ("Margarita (Litro)"); `summary` the options picked. */
+export type OutboxItem = KitchenItem & { name: string; price: number; summary?: string };
 
 export type OutboxOrder = {
   ref: string;

@@ -20,8 +20,24 @@ import { BrandButton } from '@/components/brand/brand-button';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import type { Ingredient, Product } from '@/types/product';
+import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
 import { getCachedDetail, loadDetails, saveDetail } from '@/data/product-details';
+import {
+  addOne,
+  canAddMore,
+  countOf,
+  createSelection,
+  formatPrice,
+  groupRule,
+  groupTotal,
+  missingChoices,
+  reminders,
+  removeOne,
+  selectVariant,
+  toggle,
+  unitPrice,
+  type Selection,
+} from '@/domain/menu-options';
 import { menuImage } from '@/utils/image-source';
 
 type ProductDetailSheetProps = {
@@ -31,7 +47,7 @@ type ProductDetailSheetProps = {
    * Present → ordering mode ("Arma tu pedido"): ingredient checklist, comments and
    * Cancelar / Agregar al pedido. Absent → read-only menu card.
    */
-  onAdd?: (product: Product, excluded: Ingredient[], notes: string, quantity: number) => void;
+  onAdd?: (product: Product, excluded: Ingredient[], notes: string, quantity: number, selection: Selection) => void;
   /** Ordering mode: choices already made for this dish (e.g. editing a table's order). */
   initialExcluded?: Ingredient[];
   initialNotes?: string;
@@ -48,6 +64,7 @@ type ProductDetailSheetProps = {
 
 const ingredientKey = (ingredient: Ingredient) => String(ingredient.id ?? ingredient.name);
 const MAX_QUANTITY = 50;
+const AMBER = '#D97706';
 
 function IngredientToggle({
   ingredient,
@@ -92,6 +109,66 @@ function IngredientToggle({
   );
 }
 
+/** One option of a list (sauce, fries…); with repeats allowed, a − n + counter once picked. */
+function OptionChoice({
+  group,
+  option,
+  selection,
+  onChange,
+}: {
+  group: OptionGroup;
+  option: MenuOption;
+  selection: Selection;
+  onChange: (next: Selection) => void;
+}) {
+  const { colors } = useBrandTheme();
+  const count = countOf(selection, option);
+  const detail = [option.detail, option.price > 0 ? `+${formatPrice(option.price)}` : ''].filter(Boolean).join(' · ');
+  const more = canAddMore(group, option, selection);
+
+  return (
+    <View
+      style={[
+        styles.ingredient,
+        count > 0
+          ? { backgroundColor: `${Brand.orange}1A`, borderColor: Brand.orange }
+          : { backgroundColor: colors.background, borderColor: colors.border },
+      ]}>
+      <Pressable
+        accessibilityRole={group.max === 1 ? 'radio' : 'checkbox'}
+        accessibilityState={{ checked: count > 0 }}
+        accessibilityLabel={[option.name, detail].filter(Boolean).join(', ')}
+        onPress={() => onChange(toggle(group, option, selection))}
+        style={styles.optionMain}>
+        <Text style={[styles.ingredientText, { color: colors.text }]}>{option.name}</Text>
+        {!!detail && <Text style={[styles.optionDetail, { color: colors.textSecondary }]}>{detail}</Text>}
+      </Pressable>
+      {group.maxPerOption > 1 && count > 0 && (
+        <View style={styles.optionStepper}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Quitar una ${option.name}`}
+            hitSlop={6}
+            onPress={() => onChange(removeOne(option, selection))}
+            style={[styles.optionStep, { borderColor: colors.border }]}>
+            <Text style={[styles.optionStepText, { color: colors.text }]}>−</Text>
+          </Pressable>
+          <Text style={[styles.optionCount, { color: colors.text }]}>{count}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Agregar otra ${option.name}`}
+            hitSlop={6}
+            disabled={!more}
+            onPress={() => onChange(addOne(group, option, selection))}
+            style={[styles.optionStep, { borderColor: colors.border, opacity: more ? 1 : 0.35 }]}>
+            <Text style={[styles.optionStepText, { color: colors.text }]}>+</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
 /** Dish card: full name, description, ingredients and price; optionally customize and add. */
 export function ProductDetailSheet({
   product,
@@ -113,6 +190,9 @@ export function ProductDetailSheet({
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set((initialExcluded ?? []).map(ingredientKey)));
   const [notes, setNotes] = useState(initialNotes);
   const [quantity, setQuantity] = useState(initialQuantity);
+  // Size and options picked; null = still the dish's starting choice.
+  const [picked, setPicked] = useState<Selection | null>(null);
+  const selection = picked ?? (product ? createSelection(product) : { variantId: null, counts: {} });
 
   const ordering = !!onAdd;
   // Only regular dishes have a detail endpoint (promotions don't).
@@ -148,6 +228,7 @@ export function ProductDetailSheet({
     setDetailFailed(false);
     setExcluded(new Set());
     setNotes('');
+    setPicked(null);
     onClose();
   };
 
@@ -164,7 +245,7 @@ export function ProductDetailSheet({
   const add = () => {
     if (!product || !onAdd) return;
     const removed = (detail?.ingredients ?? []).filter((i) => excluded.has(ingredientKey(i)));
-    onAdd(product, removed, notes, withQuantity ? quantity : 1);
+    onAdd(product, removed, notes, withQuantity ? quantity : 1, selection);
     close();
   };
 
@@ -178,6 +259,10 @@ export function ProductDetailSheet({
   const ingredients = detail?.ingredients ?? [];
   // Checkout needs the server id; unavailable dishes can't be ordered either.
   const canOrder = !!product && product.available && product.id !== null;
+  // Required lists block adding; included lists left empty are only reminded.
+  const missing = product ? missingChoices(product, selection) : [];
+  const forgotten = product ? reminders(product, selection) : [];
+  const price = product ? unitPrice(product, selection) : 0;
 
   return (
     <Modal visible={!!product} transparent animationType="slide" onRequestClose={close} statusBarTranslucent>
@@ -242,6 +327,56 @@ export function ProductDetailSheet({
                   </View>
                 )}
 
+                {ordering && product.variants.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Presentación</Text>
+                    <View style={styles.grid}>
+                      {product.variants.map((variant) => {
+                        const on = selection.variantId === variant.id;
+                        return (
+                          <Pressable
+                            key={variant.id}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: on }}
+                            accessibilityLabel={`${variant.name}, ${formatPrice(variant.price)}`}
+                            onPress={() => setPicked(selectVariant(selection, variant.id))}
+                            style={[
+                              styles.ingredient,
+                              styles.optionMain,
+                              on
+                                ? { backgroundColor: `${Brand.orange}1A`, borderColor: Brand.orange }
+                                : { backgroundColor: colors.background, borderColor: colors.border },
+                            ]}>
+                            <Text style={[styles.ingredientText, { color: colors.text }]}>{variant.name}</Text>
+                            <Text style={[styles.optionDetail, { color: Brand.greenLight }]}>{formatPrice(variant.price)}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {ordering &&
+                  product.optionGroups.map((group) => (
+                    <View key={group.id} style={styles.section}>
+                      <View style={styles.groupHead}>
+                        <Text style={[styles.sectionTitle, styles.groupTitle, { color: colors.textSecondary }]}>{group.label}</Text>
+                        <Text
+                          style={[
+                            styles.groupRule,
+                            { color: groupTotal(group, selection) < group.min ? Brand.red : colors.textSecondary },
+                          ]}>
+                          {groupRule(group)}
+                        </Text>
+                      </View>
+                      <View style={styles.grid}>
+                        {group.options.map((option) => (
+                          <OptionChoice key={option.id} group={group} option={option} selection={selection} onChange={setPicked} />
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+
                 {loadingDetail && <ActivityIndicator color={Brand.orange} style={styles.loader} />}
 
                 {ingredients.length > 0 && !ordering && (
@@ -304,7 +439,7 @@ export function ProductDetailSheet({
                   <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Precio</Text>
                   <Text style={[styles.price, { color: colors.text }]}>
                     <Text style={{ color: Brand.orange }}>$</Text>
-                    {formatMoney(product.price).slice(1)}
+                    {formatMoney(price).slice(1)}
                     <Text style={[styles.currency, { color: colors.textSecondary }]}> {product.currency}</Text>
                   </Text>
                 </View>
@@ -315,6 +450,15 @@ export function ProductDetailSheet({
             {/* Always in reach, without scrolling past the ingredients. */}
             {ordering && (
               <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+                {missing.length > 0 ? (
+                  <Text style={[styles.notice, { color: Brand.red }]} accessibilityLiveRegion="polite">
+                    {missing[0]}
+                  </Text>
+                ) : (
+                  forgotten.length > 0 && (
+                    <Text style={[styles.notice, { color: AMBER }]}>Sin elegir: {forgotten.join(', ')}. Puedes agregarlo así.</Text>
+                  )
+                )}
                 {withQuantity && canOrder && (
                   <View style={styles.stepper}>
                     <Pressable
@@ -349,13 +493,13 @@ export function ProductDetailSheet({
                       !canOrder
                         ? 'No disponible'
                         : withQuantity
-                          ? `${confirmLabel} · ${formatMoney(product.price * quantity)}`
+                          ? `${confirmLabel} · ${formatMoney(price * quantity)}`
                           : confirmLabel
                     }
                     variant="action"
                     icon={canOrder ? { ios: 'cart.badge.plus', android: 'add_shopping_cart', web: 'add_shopping_cart' } : undefined}
                     onPress={add}
-                    disabled={!canOrder || loadingDetail}
+                    disabled={!canOrder || loadingDetail || missing.length > 0}
                     style={styles.confirm}
                   />
                 </View>
@@ -552,6 +696,61 @@ const styles = StyleSheet.create({
   },
   struck: {
     textDecorationLine: 'line-through',
+  },
+  optionMain: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    gap: 2,
+  },
+  optionDetail: {
+    fontFamily: BrandFonts.body,
+    fontSize: 12,
+  },
+  optionStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  optionStep: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionStepText: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  optionCount: {
+    minWidth: 14,
+    textAlign: 'center',
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+  },
+  groupHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  groupTitle: {
+    flex: 1,
+  },
+  groupRule: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 12,
+    paddingTop: 2,
+  },
+  notice: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 13,
+    lineHeight: 18,
   },
   notes: {
     minHeight: 96,

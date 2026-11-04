@@ -174,7 +174,7 @@ export default function CartScreen() {
       <ProductDetailSheet
         product={customizing}
         onClose={() => setCustomizing(null)}
-        onAdd={(product, excluded, notes) => cart.add(product, { excluded, notes })}
+        onAdd={(product, excluded, notes, _quantity, selection) => cart.add(product, { excluded, notes, selection })}
       />
     </BrandScreen>
   );

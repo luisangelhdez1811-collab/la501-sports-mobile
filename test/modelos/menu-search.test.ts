@@ -15,6 +15,11 @@ const platillo = (name: string, category: string, description = '', subcategory 
   category,
   subcategory,
   available: true,
+  section: 'comidas',
+  station: 'cocina',
+  presentation: '',
+  variants: [],
+  optionGroups: [],
 });
 
 const menu = [
