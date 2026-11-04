@@ -1,8 +1,6 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { Checkbox } from '@/components/brand/checkbox';
@@ -12,12 +10,9 @@ import { PasswordRules } from '@/components/brand/password-rules';
 import { OrDivider, TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
 import { BrandFonts } from '@/constants/brand';
-import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useStorePolicy } from '@/hooks/use-store-policy';
-import { isEmail, isPhone, isStrongPassword, normalizePhone } from '@/utils/validation';
-
-type Errors = Partial<Record<'name' | 'email' | 'phone' | 'password' | 'confirm', string>>;
+import { useRegisterForm } from '@/hooks/use-session-forms';
+import { normalizePhone } from '@/utils/validation';
 
 function FormSection({ children }: { children: string }) {
   const { colors } = useBrandTheme();
@@ -30,62 +25,36 @@ function FormSection({ children }: { children: string }) {
 
 export default function RegisterScreen() {
   const { colors } = useBrandTheme();
-  const { signUp } = useAuth();
-  // The versions of the texts the person accepts with the checkbox (M-22).
-  const policy = useStorePolicy();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  // Consent checkboxes always start unchecked (explicit opt-in).
-  const [terms, setTerms] = useState(false);
-  const [adult, setAdult] = useState(false);
-  const [promoOptIn, setPromoOptIn] = useState(false);
-  const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const validate = (): Errors => {
-    const next: Errors = {};
-    if (name.trim().length < 3) next.name = 'Escribe tu nombre completo.';
-    if (!isEmail(email)) next.email = 'Correo electrónico no válido.';
-    if (!isPhone(phone)) next.phone = 'El teléfono debe tener 10 dígitos.';
-    if (!isStrongPassword(password)) next.password = 'La contraseña no cumple los requisitos.';
-    if (confirm !== password) next.confirm = 'Las contraseñas no coinciden.';
-    return next;
-  };
+  const {
+    name,
+    setName,
+    email,
+    setEmail,
+    phone,
+    setPhone,
+    password,
+    setPassword,
+    confirm,
+    setConfirm,
+    terms,
+    setTerms,
+    adult,
+    setAdult,
+    promoOptIn,
+    setPromoOptIn,
+    errors,
+    formError,
+    submitting,
+    submit: register,
+  } = useRegisterForm();
 
   const submit = async () => {
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length > 0) return setFormError('Revisa los campos marcados.');
-    if (!adult) return setFormError('Para crear tu cuenta debes ser mayor de 18 años.');
-    if (!terms) return setFormError('Para crear tu cuenta debes aceptar los Términos y el Aviso de privacidad.');
-
-    setFormError(null);
-    setSubmitting(true);
-    try {
-      const user = await signUp({
-        name,
-        email,
-        phone: normalizePhone(phone),
-        password,
-        passwordConfirmation: confirm,
-        promoOptIn,
-        adult,
-        termsVersion: policy.termsVersion,
-        privacyVersion: policy.privacyVersion,
-      });
-      // Without an automatic session, send them to sign in with the new account.
-      if (user) {
-        if (router.canGoBack()) router.back();
-        else router.replace('/');
-      } else router.replace('/login');
-    } catch (err) {
-      setFormError(errorMessage(err));
-    } finally {
-      setSubmitting(false);
+    const outcome = await register();
+    // Without an automatic session, send them to sign in with the new account.
+    if (outcome === 'sign-in') router.replace('/login');
+    else if (outcome === 'signed-in') {
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
     }
   };
 

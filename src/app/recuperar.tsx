@@ -1,9 +1,6 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { forgotPassword, resetPassword, verifyResetCode, type RecoveryTarget } from '@/api/auth';
-import { ApiError, errorMessage } from '@/api/client';
 import { Segmented } from '@/components/admin/admin-ui';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -12,15 +9,11 @@ import { FormMessage } from '@/components/brand/form-message';
 import { PasswordRules } from '@/components/brand/password-rules';
 import { TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
-import { CodeField, isCompleteCode, ResendCode } from '@/components/verification/code-input';
+import { CodeField, ResendCode } from '@/components/verification/code-input';
 import { BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCooldown } from '@/hooks/use-cooldown';
-import { isEmail, isPhone, isStrongPassword, normalizePhone } from '@/utils/validation';
-
-// Same order as the website: send the code → verify it → choose the new password.
-type Step = 'contact' | 'code' | 'password' | 'done';
-type Mode = 'email' | 'phone';
+import { usePasswordRecovery } from '@/hooks/use-password-recovery';
+import { normalizePhone } from '@/utils/validation';
 
 const MODES = [
   { value: 'email', label: 'Correo' },
@@ -36,88 +29,34 @@ const HEADER = {
 
 export default function RecoverScreen() {
   const { colors } = useBrandTheme();
-  const cooldown = useCooldown();
-  const [step, setStep] = useState<Step>('contact');
-  // Separate choices so each gets the right keyboard (a phone number on the email keyboard is hard to type).
-  const [mode, setMode] = useState<Mode>('email');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [target, setTarget] = useState<RecoveryTarget | null>(null);
-  const [code, setCode] = useState('');
-  const [resetToken, setResetToken] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const {
+    step,
+    mode,
+    chooseMode,
+    email,
+    setEmail,
+    phone,
+    setPhone,
+    code,
+    setCode,
+    password,
+    setPassword,
+    confirm,
+    setConfirm,
+    submitting,
+    error,
+    notice,
+    cooldownRemaining,
+    where,
+    byPhone,
+    codeSent,
+    sendCode,
+    resend,
+    verify,
+    reset,
+    startOver,
+  } = usePasswordRecovery();
 
-  const run = async (action: () => Promise<void>) => {
-    setError(null);
-    setNotice(null);
-    setSubmitting(true);
-    try {
-      await action();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const send = (next: RecoveryTarget) =>
-    run(async () => {
-      await cooldown.track(() => forgotPassword(next));
-      setTarget(next);
-      if (step === 'code') setNotice('Te enviamos un código nuevo.');
-      setCode('');
-      setStep('code');
-    });
-
-  const sendCode = () => {
-    if (mode === 'email' && !isEmail(email)) return setError('Escribe un correo electrónico válido.');
-    if (mode === 'phone' && !isPhone(phone)) return setError('El celular debe tener 10 dígitos.');
-    send(mode === 'email' ? { email } : { phone });
-  };
-
-  const verify = () => {
-    if (!target) return;
-    if (!isCompleteCode(code)) return setError('Escribe el código de 6 dígitos que te enviamos.');
-    run(async () => {
-      setResetToken(await verifyResetCode(target, code));
-      setStep('password');
-    });
-  };
-
-  const reset = () => {
-    if (!target) return;
-    if (!isStrongPassword(password)) return setError('La contraseña no cumple los requisitos.');
-    if (password !== confirm) return setError('Las contraseñas no coinciden.');
-    run(async () => {
-      try {
-        await resetPassword({ target, resetToken, code, password, passwordConfirmation: confirm });
-        setStep('done');
-      } catch (err) {
-        // The code (or its token) expired while choosing the password: back to the code step.
-        if (err instanceof ApiError && err.code === 'invalid_or_expired_code') {
-          setCode('');
-          setResetToken(null);
-          setStep('code');
-        }
-        throw err;
-      }
-    });
-  };
-
-  const startOver = () => {
-    setStep('contact');
-    setCode('');
-    setResetToken(null);
-    setError(null);
-    setNotice(null);
-  };
-
-  const byPhone = !!target && 'phone' in target;
-  const where = target ? ('email' in target ? target.email.trim() : target.phone) : '';
   const intro = {
     contact:
       mode === 'email'
@@ -152,10 +91,7 @@ export default function RecoverScreen() {
             <Segmented
               options={MODES}
               value={mode}
-              onChange={(next) => {
-                setMode(next);
-                setError(null);
-              }}
+              onChange={chooseMode}
             />
             {mode === 'email' ? (
               <TextField
@@ -192,7 +128,7 @@ export default function RecoverScreen() {
           </>
         )}
 
-        {step === 'code' && target && (
+        {step === 'code' && codeSent && (
           <>
             <CodeField value={code} onChange={setCode} />
             <BrandButton
@@ -201,7 +137,7 @@ export default function RecoverScreen() {
               onPress={verify}
               loading={submitting}
             />
-            <ResendCode remaining={cooldown.remaining} phone={byPhone} onResend={() => send(target)} />
+            <ResendCode remaining={cooldownRemaining} phone={byPhone} onResend={resend} />
             <TextLink
               label={byPhone ? 'Usar otro celular o tu correo' : 'Usar otro correo o tu celular'}
               muted

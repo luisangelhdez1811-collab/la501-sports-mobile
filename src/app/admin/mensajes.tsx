@@ -2,12 +2,11 @@ import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { getMessages, markMessageAttended, type AdminMessage, type MessageFilter } from '@/api/admin';
-import { errorMessage } from '@/api/client';
+import type { AdminMessage, MessageFilter } from '@/api/admin';
 import { AdminColors, Panel, PanelState, Segmented, StatCard, StatGrid, Tag } from '@/components/admin/admin-ui';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAdminResource } from '@/hooks/use-admin-resource';
+import { useMarkMessageAttended, useMessages } from '@/hooks/use-admin';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 const FILTERS = [
@@ -34,7 +33,7 @@ export default function AdminMessagesScreen() {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const list = useAdminResource(`messages-${filter}-${search}`, (signal) => getMessages(filter, search, signal));
+  const list = useMessages(filter, search);
   const counts = list.data?.counts;
   const items = list.data?.items ?? [];
 
@@ -142,19 +141,13 @@ export default function AdminMessagesScreen() {
 function MessageCard({ message, onChanged }: { message: AdminMessage; onChanged: () => void }) {
   const { colors } = useBrandTheme();
   const [expanded, setExpanded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useMarkMessageAttended();
   const type = TYPE[message.type];
 
   const markAttended = async () => {
-    setBusy(true);
-    try {
-      await markMessageAttended(message.id);
-      onChanged();
-    } catch (err) {
-      Alert.alert('No se pudo actualizar', errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
+    const failed = await run(message.id);
+    if (failed) Alert.alert('No se pudo actualizar', failed);
+    else onChanged();
   };
 
   const reply = () => {

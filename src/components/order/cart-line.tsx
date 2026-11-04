@@ -9,7 +9,7 @@ import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { linePrice } from '@/domain/cart';
 import { displayName, EMPTY_SELECTION, optionsSummary } from '@/domain/menu-options';
 import { useCart, type CartItem } from '@/hooks/use-cart';
-import { menuImage } from '@/data/image-source';
+import { menuImage } from '@/utils/image-source';
 
 function StepButton({ symbol, label, filled, onPress }: { symbol: '−' | '+'; label: string; filled?: boolean; onPress: () => void }) {
   const { colors } = useBrandTheme();

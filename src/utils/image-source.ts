@@ -1,6 +1,6 @@
 import type { ImageSource } from 'expo-image';
 
-import { SNAPSHOT_IMAGES } from '@/data/menu-snapshot-images';
+import { SNAPSHOT_IMAGES } from '@/content/menu-snapshot-images';
 
 /**
  * Image source for a dish photo: the copy bundled in the app when there is one (works

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { errorMessage } from '@/api/client';
 import { useOnReconnect } from '@/hooks/use-connectivity';
-import { readCache, writeCache } from '@/data/offline-cache';
+import { pruneRetiredCache, readCache, writeCache } from '@/data/offline-cache';
 
 type ResourceState<T> = {
   data: T | null;
@@ -127,4 +127,9 @@ export function useCachedResource<T>(
   };
 
   return { ...state, reload, refresh };
+}
+
+/** Once per launch: frees the space of copies the app no longer keeps offline. */
+export function useCacheCleanup() {
+  useEffect(() => pruneRetiredCache(), []);
 }

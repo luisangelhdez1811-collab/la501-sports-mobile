@@ -25,7 +25,7 @@ flowchart TD
 
 | Capa | Carpeta | Responsabilidad | No puede importar |
 |---|---|---|---|
-| Vista | `src/app`, `src/components` | Dibujar y reaccionar al usuario | `src/app` desde componentes |
+| Vista | `src/app`, `src/components` | Dibujar y reaccionar al usuario | `src/api` y `src/data` (solo por un hook); `src/app` desde componentes |
 | ViewModel | `src/hooks` | Estado de pantalla: cargar, guardar, sin conexión | Vista |
 | Datos (repositorios) | `src/data` | De dónde salen los datos: memoria, teléfono o servidor | Vista, ViewModel |
 | API | `src/api` | HTTP, sesión, convertir JSON en modelos | Vista, ViewModel, Datos |
@@ -51,9 +51,20 @@ el estado y las acciones:
 | Aceptar textos legales | `useLegalUpdate` | Pide aceptar versiones nuevas del Aviso y los Términos |
 | Reglas de la tienda | `useStorePolicy` | Leyenda y venta de alcohol, proveedor, puntos y factura desde `/public/info` |
 
-Las pantallas que solo muestran datos pasan la función de la API a `useCachedResource` (su
-ViewModel genérico: carga, sin conexión, reintento). Una acción suelta (cambiar la
-contraseña, marcar un mensaje como atendido) puede llamar a la API desde la pantalla.
+**Ninguna pantalla ni componente importa `src/api` o `src/data`** (solo sus tipos, con
+`import type`): el lint falla si lo hacen. Todo pasa por un hook:
+
+| Hooks | Para qué |
+|---|---|
+| `useAccount`, `usePhoneChange`, `useAvatar`, `useDeleteAccount`, `useChangePassword` | Cuenta del cliente |
+| `useLoginForm`, `useRegisterForm`, `usePasswordRecovery` | Sesión |
+| `useMyOrders`, `useGuestOrderLookup` | Mis pedidos (con cuenta o con código por SMS) |
+| `usePromotions`, `useNews`, `useRecommendations`, `useNewsletter` | Contenido del restaurante |
+| `useRestaurantInfo`, `useReservationForm` | Horario, ubicación y reservaciones |
+| `useProductDetail`, `useCategorySubgroups` | Ficha del platillo y subcategorías |
+| `useTablesMap`, `useOpenOrders`, `useOutboxSync`, `useMyOutbox` | Mesero: mapa, cuentas y pedidos sin conexión |
+| `useSalesSummary`, `useEarnings`, `useMessages`, `useReservations`… | Panel del administrador |
+| `useNotificationTaps`, `useWaiterReadyAlerts`, `useCustomerOrderAlerts` | Notificaciones en el teléfono |
 
 ## Patrones de diseño
 

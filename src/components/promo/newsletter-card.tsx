@@ -1,38 +1,17 @@
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { subscribeNewsletter } from '@/api/catalog';
-import { errorMessage } from '@/api/client';
 import { FormMessage } from '@/components/brand/form-message';
 import { SkewButton } from '@/components/brand/skew-button';
 import { TextField } from '@/components/brand/text-field';
 import { BrandTitle } from '@/components/brand/typography';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { isEmail } from '@/utils/validation';
+import { useNewsletter } from '@/hooks/use-content';
 
 /** "¿No quieres perderte ninguna oferta?" email signup. */
 export function NewsletterCard() {
   const { colors } = useBrandTheme();
-  const { user } = useAuth();
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
-
-  const submit = async () => {
-    if (!isEmail(email)) return setMessage({ type: 'error', text: 'Escribe un correo electrónico válido.' });
-    setSubmitting(true);
-    setMessage(null);
-    try {
-      await subscribeNewsletter(email);
-      setMessage({ type: 'success', text: '¡Listo! Te avisaremos de nuestras ofertas.' });
-    } catch (err) {
-      setMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const { email, setEmail, submitting, message, submit } = useNewsletter();
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

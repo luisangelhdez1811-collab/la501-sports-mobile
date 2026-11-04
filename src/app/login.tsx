@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
-import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { Checkbox } from '@/components/brand/checkbox';
@@ -10,10 +9,10 @@ import { FormMessage } from '@/components/brand/form-message';
 import { OrDivider, TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
 import { useAuth } from '@/hooks/use-auth';
-import { isEmail } from '@/utils/validation';
+import { useLoginForm } from '@/hooks/use-session-forms';
 
 export default function LoginScreen() {
-  const { signIn, user } = useAuth();
+  const { user } = useAuth();
   const role = user?.role;
 
   // Staff have their own sections; the customer screens behind this one are closed to
@@ -22,30 +21,14 @@ export default function LoginScreen() {
     if (role === 'admin') router.replace('/admin');
     else if (role === 'mesero') router.replace('/mesero');
   }, [role]);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { email, setEmail, password, setPassword, remember, setRemember, submitting, error, submit: signInWithForm } = useLoginForm();
 
   const submit = async () => {
-    if (!isEmail(email)) return setError('Escribe un correo electrónico válido.');
-    if (!password) return setError('Escribe tu contraseña.');
-
-    setError(null);
-    setSubmitting(true);
-    try {
-      const signedIn = await signIn(email, password, remember);
-      if (signedIn.role !== 'cliente') return; // the effect above opens their section
-      // Back to wherever sign-in was opened from (Cuenta, Pedidos, the ☰ panel…).
-      if (router.canGoBack()) router.back();
-      else router.replace('/');
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSubmitting(false);
-      setPassword('');
-    }
+    const signedIn = await signInWithForm();
+    if (!signedIn || signedIn.role !== 'cliente') return; // staff: the effect above opens their section
+    // Back to wherever sign-in was opened from (Cuenta, Pedidos, the ☰ panel…).
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
   };
 
   return (

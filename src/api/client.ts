@@ -1,4 +1,5 @@
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/config/api';
+import { formatWait } from '@/utils/format-wait';
 
 import { ensureSslPinning, recentPinningViolation } from './ssl-pinning';
 import { clearToken, getRefreshToken, getToken, readTokens, replaceSession } from './token-storage';
@@ -59,12 +60,6 @@ function assertSafePath(path: string) {
 }
 
 /** "45 segundos" / "8 minutos". */
-export function formatWait(seconds: number) {
-  if (seconds < 60) return `${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
-  const minutes = Math.ceil(seconds / 60);
-  return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
-}
-
 // Verification-code errors get fixed wording, the same on every screen.
 function codeMessage(code: string | null, retryAfter: number | null): string | null {
   if (code === 'too_many_attempts') {

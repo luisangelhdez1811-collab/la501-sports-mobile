@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,12 +14,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getProductDetail, type ProductDetail } from '@/api/catalog';
 import { BrandButton } from '@/components/brand/brand-button';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { formatPrice } from '@/domain/money';
-import { getCachedDetail, loadDetails, saveDetail } from '@/data/product-details';
 import {
   addOne,
   canAddMore,
@@ -37,8 +35,9 @@ import {
 } from '@/domain/menu-options';
 import type { DishChoice } from '@/domain/waiter-order';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { useProductDetail } from '@/hooks/use-product-detail';
 import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
-import { menuImage } from '@/data/image-source';
+import { menuImage } from '@/utils/image-source';
 
 export type { DishChoice } from '@/domain/waiter-order';
 
@@ -167,8 +166,7 @@ export function CustomizeSheet({
 }: CustomizeSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
-  const [detail, setDetail] = useState<ProductDetail | null>(null);
-  const [detailFailed, setDetailFailed] = useState(false);
+  const { detail, loading: loadingDetail } = useProductDetail(product);
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set((initial?.excluded ?? []).map(ingredientKey)));
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [quantity, setQuantity] = useState(initial?.quantity ?? 1);
@@ -176,33 +174,7 @@ export function CustomizeSheet({
     () => initial?.selection ?? (product ? createSelection(product) : { variantId: null, counts: {} }),
   );
 
-  // Only regular dishes have a detail endpoint (promotions don't).
-  const productId = product?.kind === 'product' ? product.id : null;
 
-  useEffect(() => {
-    if (productId === null) return;
-    const controller = new AbortController();
-
-    (async () => {
-      // Saved details show instantly (and are all there is offline).
-      await loadDetails();
-      if (controller.signal.aborted) return;
-      const cached = getCachedDetail(productId);
-      if (cached) {
-        setDetail(cached);
-        return;
-      }
-      try {
-        const data = await getProductDetail(productId, controller.signal);
-        saveDetail(productId, data);
-        setDetail(data);
-      } catch {
-        if (!controller.signal.aborted) setDetailFailed(true);
-      }
-    })();
-
-    return () => controller.abort();
-  }, [productId]);
 
   const toggleIngredient = (ingredient: Ingredient) => {
     setExcluded((current) => {
@@ -217,7 +189,6 @@ export function CustomizeSheet({
   if (!product) return <Modal visible={false} transparent />;
 
   const ingredients = detail?.ingredients ?? [];
-  const loadingDetail = productId !== null && !detail && !detailFailed;
   const missing = missingChoices(product, selection);
   const forgotten = reminders(product, selection);
   // Checkout needs the server id; unavailable dishes can't be ordered either.

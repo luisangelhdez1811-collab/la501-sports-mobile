@@ -13,17 +13,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getTable, PAYMENT_METHODS, type TableOrder } from '@/api/waiter';
+import type { TableOrder } from '@/api/waiter';
 import { formatMoney } from '@/domain/money';
 import { FormMessage } from '@/components/brand/form-message';
 import { TextField } from '@/components/brand/text-field';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { createBills, coversTable, orderKey, ordersTotal, type Bill } from '@/domain/bills';
-import { useOutbox } from '@/data/waiter-outbox';
+import { PAYMENT_METHODS } from '@/domain/payments';
 import { useBillPayment } from '@/hooks/use-bill-payment';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
-import { openOrders } from '@/domain/waiter-tables';
+import { useOpenOrders } from '@/hooks/use-table-order';
 
 const MAX_PAYMENTS = 3;
 
@@ -50,8 +49,7 @@ type ChargeSheetProps = {
 export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
-  const { entries } = useOutbox();
-  const detail = useCachedResource(`waiter-table-${table.id}`, (signal) => getTable(table.id, signal), { persist: true });
+  const { detail, orders: open } = useOpenOrders(table.id);
   // Bills are fixed once the waiter picks how to pay, so charging one doesn't reshuffle the rest.
   const [bills, setBills] = useState<Bill[] | null>(null);
   const [step, setStep] = useState(0);
@@ -59,7 +57,7 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
 
   const loading = detail.data === null && detail.loading;
   const orders = detail.data
-    ? openOrders(detail.data, table.id, entries)
+    ? open
     : // No saved copy of this table yet: one bill, as the map shows it (charged once online).
       [{ id: null, ref: null, label: 'Mesa completa', total: table.total, kitchenPending: table.kitchenPending, items: [] }];
   const choosing = bills === null && !only && orders.length > 1;

@@ -1,10 +1,8 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { errorMessage } from '@/api/client';
-import { addTable, getTables, removeTable, type TablesMap } from '@/api/waiter';
 import { formatMoney } from '@/domain/money';
 import { AdminTitle, Segmented } from '@/components/admin/admin-ui';
 import { BrandButton } from '@/components/brand/brand-button';
@@ -13,21 +11,17 @@ import { OfflineBanner } from '@/components/brand/offline-banner';
 import { ChargeSheet } from '@/components/waiter/charge-sheet';
 import { OutboxBanner } from '@/components/waiter/outbox-sync';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useOutbox } from '@/data/waiter-outbox';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
-import { useIsOffline } from '@/hooks/use-connectivity';
-import { summarize, tableState, tableView, type TableState, type TableView } from '@/domain/waiter-tables';
+import { tableState, type TableState, type TableView } from '@/domain/waiter-tables';
+import { useTablesMap } from '@/hooks/use-tables-map';
 
-// Other waiters change tables too: refresh the map every so often while it's open.
-const REFRESH_MS = 20_000;
-const AMBER = '#F59E0B';
 
 /** Same states as the website's map. */
-const STATES: Record<TableState, { label: string; color: string }> = {
-  libre: { label: 'Libre', color: Brand.greenLight },
-  preparando: { label: 'En preparación', color: AMBER },
-  lista: { label: 'Lista para cobrar', color: Brand.greenLight },
+// Palette keys, so each state reads in light and dark mode (AA).
+const STATES: Record<TableState, { label: string; tone: 'success' | 'warning' }> = {
+  libre: { label: 'Libre', tone: 'success' },
+  preparando: { label: 'En preparación', tone: 'warning' },
+  lista: { label: 'Lista para cobrar', tone: 'success' },
 };
 
 type Filter = 'todas' | 'ocupadas' | 'libres';
@@ -39,39 +33,14 @@ type Filter = 'todas' | 'ocupadas' | 'libres';
  */
 export default function TablesMapScreen() {
   const { colors } = useBrandTheme();
-  const offline = useIsOffline();
-  const map = useCachedResource<TablesMap>('waiter-tables', getTables, { persist: true });
-  const { entries } = useOutbox();
+  const { offline, map, tables, totals, toServeTotal, last, canRemove, changing, change: changeTables } = useTablesMap();
+  const { reload } = map;
   const [filter, setFilter] = useState<Filter>('todas');
   const [charging, setCharging] = useState<TableView | null>(null);
-  const [changing, setChanging] = useState<'add' | 'remove' | null>(null);
-  const { reload } = map;
 
-  useEffect(() => {
-    if (offline) return;
-    const timer = setInterval(reload, REFRESH_MS);
-    return () => clearInterval(timer);
-    // `reload` is recreated every render; one timer per connection state is enough.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offline]);
-
-  // Something saved offline just reached the server: show the server's numbers.
-  const pendingBefore = useRef(entries.length);
-  useEffect(() => {
-    if (entries.length < pendingBefore.current) reload();
-    pendingBefore.current = entries.length;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries.length]);
-
-  const tables = (map.data?.tables ?? []).map((table) => tableView(table, entries));
-  const totals = summarize(tables);
-  const toServeTotal = tables.reduce((sum, t) => sum + t.toServe, 0);
   const visible = tables.filter((t) =>
     filter === 'todas' ? true : filter === 'ocupadas' ? t.status === 'ocupada' : t.status === 'disponible',
   );
-  const last = tables.at(-1);
-  const canRemove =
-    !!map.data && !!last && tables.length > map.data.minTables && last.status === 'disponible' && last.unsent === 0;
 
   const add = () => {
     Alert.alert('Agregar mesa', `Se agregará la mesa ${tables.length + 1} al mapa.`, [
@@ -87,16 +56,8 @@ export default function TablesMapScreen() {
     ]);
   };
   const change = async (action: 'add' | 'remove') => {
-    setChanging(action);
-    try {
-      if (action === 'add') await addTable();
-      else if (last) await removeTable(last.id);
-      reload();
-    } catch (err) {
-      Alert.alert(action === 'add' ? 'No se pudo agregar' : 'No se pudo quitar', errorMessage(err));
-    } finally {
-      setChanging(null);
-    }
+    const failed = await changeTables(action);
+    if (failed) Alert.alert(action === 'add' ? 'No se pudo agregar' : 'No se pudo quitar', failed);
   };
 
   const openOrder = (table: TableView) =>
@@ -236,8 +197,8 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
       </View>
 
       <View style={styles.stateRow}>
-        <View style={[styles.stateDot, { backgroundColor: state.color }]} />
-        <Text style={[styles.status, { color: state.color }]} numberOfLines={1}>
+        <View style={[styles.stateDot, { backgroundColor: colors[state.tone] }]} />
+        <Text style={[styles.status, { color: colors[state.tone] }]} numberOfLines={1}>
           {state.label}
         </Text>
       </View>

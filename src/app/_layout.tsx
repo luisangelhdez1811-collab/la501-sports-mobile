@@ -7,8 +7,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { getPromotions } from '@/api/catalog';
-import { getRestaurantInfo } from '@/api/info';
 import { NavDrawer } from '@/components/brand/nav-drawer';
 import { LegalUpdateSheet } from '@/components/legal/legal-update-sheet';
 import { CustomerAlerts, WaiterAlerts } from '@/components/notifications/order-alerts';
@@ -17,14 +15,15 @@ import { OutboxSync } from '@/components/waiter/outbox-sync';
 import { BrandPalettes } from '@/constants/brand';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { BrandThemeProvider, useBrandTheme } from '@/hooks/use-brand-theme';
-import { preloadResource } from '@/hooks/use-cached-resource';
 import { CartProvider } from '@/hooks/use-cart';
+import { useCacheCleanup } from '@/hooks/use-cached-resource';
+import { preloadPromotions } from '@/hooks/use-content';
 import { DrawerProvider } from '@/hooks/use-drawer';
 import { LegalUpdateProvider } from '@/hooks/use-legal-update';
 import { preloadMenu } from '@/hooks/use-menu';
 import { useNotificationTaps } from '@/hooks/use-order-alerts';
+import { preloadRestaurantInfo } from '@/hooks/use-restaurant';
 import { preloadStorePolicy } from '@/hooks/use-store-policy';
-import { pruneRetiredCache } from '@/data/offline-cache';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -60,8 +59,7 @@ function RootNavigator() {
     Inter_700Bold,
   });
 
-  // Free space used by screens that are no longer saved offline.
-  useEffect(() => pruneRetiredCache(), []);
+  useCacheCleanup();
 
   // While the splash is showing, download what the first screens of this role use, so
   // they open with fresh data. Admin data is never preloaded: it's fetched on its screen.
@@ -69,8 +67,8 @@ function RootNavigator() {
     if (status === 'loading' || isAdmin) return;
     preloadMenu();
     if (isWaiter) return;
-    preloadResource('promotions', getPromotions);
-    preloadResource('restaurant-info', getRestaurantInfo, { persist: true });
+    preloadPromotions();
+    preloadRestaurantInfo();
     preloadStorePolicy();
   }, [status, isAdmin, isWaiter]);
 

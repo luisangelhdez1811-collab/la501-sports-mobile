@@ -1,10 +1,9 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { getRecommendations } from '@/api/catalog';
 import { formatMoney } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -17,14 +16,15 @@ import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { CartLine } from '@/components/order/cart-line';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
 import { BrandFonts, Radius } from '@/constants/brand';
-import { isAlcoholic, isAlcoholicProduct, requiresAdult } from '@/domain/checkout-rules';
+import { isAlcoholic, requiresAdult } from '@/domain/checkout-rules';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCart } from '@/hooks/use-cart';
+import { useRecommendations } from '@/hooks/use-content';
 import { useIsOffline } from '@/hooks/use-connectivity';
 import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Product } from '@/types/product';
-import { menuImage } from '@/data/image-source';
+import { menuImage } from '@/utils/image-source';
 
 function EmptyCart() {
   const { colors } = useBrandTheme();
@@ -48,25 +48,9 @@ function EmptyCart() {
 function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
   const { colors } = useBrandTheme();
   const cart = useCart();
-  const [items, setItems] = useState<Product[]>([]);
-  const [personalized, setPersonalized] = useState(false);
-  const idsKey = cart.items
-    .map((i) => i.product.id)
-    .filter((id): id is number => id !== null)
-    .join(',');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const ids = idsKey ? idsKey.split(',').map(Number) : [];
-    getRecommendations(ids, controller.signal)
-      .then((data) => {
-        // Never suggest drinks with alcohol: it would encourage drinking (LGS art. 308).
-        setItems(data.products.filter((p) => p.available && !isAlcoholicProduct(p)).slice(0, 8));
-        setPersonalized(data.personalized);
-      })
-      .catch(() => setItems([]));
-    return () => controller.abort();
-  }, [idsKey]);
+  const { items, personalized } = useRecommendations(
+    cart.items.map((i) => i.product.id).filter((id): id is number => id !== null),
+  );
 
   if (items.length === 0) return null;
 

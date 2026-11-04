@@ -94,7 +94,6 @@ export const DEFAULT_FEE_NOTE =
   'Si quieres saber cuánto es antes de pedir, pregúntalo al restaurante.';
 
 export const ALCOHOL_LEGEND = 'El abuso en el consumo de este producto es nocivo para la salud.';
-export const ADULTS_ONLY = 'Venta solo a mayores de 18 años.';
 const ALCOHOL_CLOSED_MESSAGE = 'En este momento no podemos vender bebidas con alcohol. Puedes pedir el resto del menú.';
 
 // The same details as the Terms (section 1 and 18); the server's copy wins.

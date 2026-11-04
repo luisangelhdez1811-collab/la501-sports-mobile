@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getProductDetail, type ProductDetail } from '@/api/catalog';
 import type { AlcoholPolicy } from '@/api/info';
 import { formatMoney, formatPrice } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
@@ -23,8 +22,8 @@ import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { isAlcoholicProduct } from '@/domain/checkout-rules';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { useProductDetail } from '@/hooks/use-product-detail';
 import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
-import { getCachedDetail, loadDetails, saveDetail } from '@/data/product-details';
 import {
   addOne,
   canAddMore,
@@ -40,7 +39,7 @@ import {
   unitPrice,
   type Selection,
 } from '@/domain/menu-options';
-import { menuImage } from '@/data/image-source';
+import { menuImage } from '@/utils/image-source';
 
 type ProductDetailSheetProps = {
   product: Product | null;
@@ -189,8 +188,7 @@ export function ProductDetailSheet({
 }: ProductDetailSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
-  const [detail, setDetail] = useState<ProductDetail | null>(null);
-  const [detailFailed, setDetailFailed] = useState(false);
+  const { detail, loading: loadingDetail } = useProductDetail(product);
   // Starting choices are read when the sheet mounts; give it a `key` per dish to reset them.
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set((initialExcluded ?? []).map(ingredientKey)));
   const [notes, setNotes] = useState(initialNotes);
@@ -200,37 +198,9 @@ export function ProductDetailSheet({
   const selection = picked ?? (product ? createSelection(product) : { variantId: null, counts: {} });
 
   const ordering = !!onAdd;
-  // Only regular dishes have a detail endpoint (promotions don't).
-  const productId = product?.kind === 'product' ? product.id : null;
 
-  useEffect(() => {
-    if (productId === null) return;
-    const controller = new AbortController();
-
-    (async () => {
-      // Saved details show instantly (and are all there is offline).
-      await loadDetails();
-      if (controller.signal.aborted) return;
-      const cached = getCachedDetail(productId);
-      if (cached) {
-        setDetail(cached);
-        return;
-      }
-      try {
-        const data = await getProductDetail(productId, controller.signal);
-        saveDetail(productId, data);
-        setDetail(data);
-      } catch {
-        if (!controller.signal.aborted) setDetailFailed(true);
-      }
-    })();
-
-    return () => controller.abort();
-  }, [productId]);
 
   const close = () => {
-    setDetail(null);
-    setDetailFailed(false);
     setExcluded(new Set());
     setNotes('');
     setPicked(null);
@@ -259,7 +229,6 @@ export function ProductDetailSheet({
     close();
   };
 
-  const loadingDetail = productId !== null && !detail && !detailFailed;
   const meta = [product?.category, detail?.subcategory].filter(Boolean).join(' · ');
   const ingredients = detail?.ingredients ?? [];
   // Checkout needs the server id; unavailable dishes can't be ordered either.

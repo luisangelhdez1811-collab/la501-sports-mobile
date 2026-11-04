@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { ADULTS_ONLY } from '@/api/info';
 import { BrandFonts, Radius } from '@/constants/brand';
+import { ADULTS_ONLY } from '@/content/legal';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 type AlcoholNoticeProps = {

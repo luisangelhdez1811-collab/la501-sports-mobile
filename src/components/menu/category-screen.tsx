@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -22,16 +22,15 @@ import { ProductCard } from '@/components/menu/product-card';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
 import { CART_BAR_HEIGHT, CartBar } from '@/components/order/cart-bar';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { getCachedDetail, loadDetails, useDetailsVersion } from '@/data/product-details';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCart } from '@/hooks/use-cart';
 import { useMenu } from '@/hooks/use-menu';
+import { useCategorySubgroups } from '@/hooks/use-product-detail';
 import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Category, Product } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
-import { groupBySubcategory } from '@/utils/subcategories';
-import { menuImage } from '@/data/image-source';
+import { menuImage } from '@/utils/image-source';
 
 type Row = { type: 'subcategory'; group: Category } | { type: 'product'; product: Product };
 
@@ -54,24 +53,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
   const [selected, setSelected] = useState<Product | null>(null);
   const policy = useStorePolicy();
 
-  const found = categories.find((c) => c.name === nombre);
-  const category = found && {
-    ...found,
-    products: found.products.map((p) =>
-      p.subcategory ? p : { ...p, subcategory: getCachedDetail(p.id)?.subcategory ?? '' },
-    ),
-  };
-  // Only split once every dish's subcategory is known, so a half-synced category never
-  // shows a misleading partial grouping.
-  const subcategoriesKnown = !!found?.products.every((p) => p.subcategory || getCachedDetail(p.id));
-  // Subcategories come from the saved dish details until the menu endpoint sends them. Only
-  // listen while some are missing: the background sync saves one every few seconds and
-  // would redraw the whole screen each time.
-  useDetailsVersion(!subcategoriesKnown);
-  useEffect(() => {
-    loadDetails();
-  }, []);
-  const groups = category && subcategoriesKnown ? groupBySubcategory(category.products) : null;
+  const { category, groups } = useCategorySubgroups(categories.find((c) => c.name === nombre));
   const subgroup = sub ? groups?.find((g) => g.name === sub) : undefined;
 
   // What this screen shows: the subcategory picker, or a list of dishes.

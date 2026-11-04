@@ -4,6 +4,7 @@ import type { Ingredient, Station } from '@/types/product';
 import { ApiError, request } from './client';
 import { choicesPayload, type ChoicesOffered } from './orders';
 import { asArray, asId, asNumber, asObject, asString, pick, unwrap, type Json } from './parse';
+import type { PaymentMethod } from '@/domain/payments';
 
 /**
  * Orders and charges only count as registered when the server says so explicitly: a proxy
@@ -228,11 +229,7 @@ export async function markServed(tableId: number, itemId: number) {
 }
 
 // The restaurant doesn't take bank transfers.
-export const PAYMENT_METHODS = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'tarjeta', label: 'Tarjeta' },
-] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
+export type { PaymentMethod } from '@/domain/payments';
 export type Payment = { method: PaymentMethod; amount: number };
 
 export type ChargeInput = {

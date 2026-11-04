@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { deleteAccount } from '@/api/account';
-import { errorMessage } from '@/api/client';
 import { arcoStyles } from '@/components/account/arco-ui';
 import { BrandButton } from '@/components/brand/brand-button';
 import { FormMessage } from '@/components/brand/form-message';
 import { TextField } from '@/components/brand/text-field';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { notOnServer } from '@/hooks/use-my-data';
+import { useDeleteAccount } from '@/hooks/use-account-actions';
 
 const CONFIRM_WORD = 'ELIMINAR';
 
@@ -33,41 +31,32 @@ export function DeleteAccountDialog({
   const insets = useSafeAreaInsets();
   const [password, setPassword] = useState('');
   const [word, setWord] = useState('');
-  const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const { deleting, message, clearMessage, remove } = useDeleteAccount();
   const ready = password.length > 0 && word.trim().toUpperCase() === CONFIRM_WORD;
 
   const close = () => {
     setPassword('');
     setWord('');
-    setMessage(null);
+    clearMessage();
     onClose();
   };
 
   const confirm = async () => {
-    setDeleting(true);
-    setMessage(null);
-    try {
-      await deleteAccount(password);
+    const outcome = await remove(password);
+    if (outcome === 'deleted') {
       setPassword('');
       setWord('');
       onDeleted();
-    } catch (err) {
-      if (notOnServer(err)) {
-        close();
-        Alert.alert(
-          'Solicitud por correo',
-          'Por ahora la eliminación de cuentas se atiende por correo en un máximo de 20 días hábiles. ¿Enviar la solicitud?',
-          [
-            { text: 'Ahora no', style: 'cancel' },
-            { text: 'Enviar correo', onPress: onEmailFallback },
-          ],
-        );
-      } else {
-        setMessage(errorMessage(err));
-      }
-    } finally {
-      setDeleting(false);
+    } else if (outcome === 'by-email') {
+      close();
+      Alert.alert(
+        'Solicitud por correo',
+        'Por ahora la eliminación de cuentas se atiende por correo en un máximo de 20 días hábiles. ¿Enviar la solicitud?',
+        [
+          { text: 'Ahora no', style: 'cancel' },
+          { text: 'Enviar correo', onPress: onEmailFallback },
+        ],
+      );
     }
   };
 

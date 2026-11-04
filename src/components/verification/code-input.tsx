@@ -1,12 +1,11 @@
 import { StyleSheet, Text } from 'react-native';
 
-import { formatWait } from '@/api/client';
 import { TextField } from '@/components/brand/text-field';
 import { TextLink } from '@/components/brand/text-link';
 import { BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-
-export const CODE_LENGTH = 6;
+import { formatWait } from '@/utils/format-wait';
+import { CODE_LENGTH } from '@/utils/validation';
 
 /** Codes are digits only: anything else typed or pasted is dropped. */
 export function CodeField({ value, onChange }: { value: string; onChange: (code: string) => void }) {
@@ -25,9 +24,6 @@ export function CodeField({ value, onChange }: { value: string; onChange: (code:
   );
 }
 
-export function isCompleteCode(code: string) {
-  return code.length === CODE_LENGTH;
-}
 
 /** "Reenviar SMS" (or "Reenviar código" for email) once the wait is over. */
 export function ResendCode({

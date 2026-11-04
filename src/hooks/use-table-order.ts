@@ -29,6 +29,16 @@ import type { Product } from '@/types/product';
 const FREQUENT_COUNT = 24;
 
 /**
+ * A table's open orders: the server's copy (saved on the phone) plus the orders still
+ * waiting in the outbox.
+ */
+export function useOpenOrders(tableId: number) {
+  const detail = useCachedResource(`waiter-table-${tableId}`, (signal) => getTable(tableId, signal), { persist: true });
+  const { entries } = useOutbox();
+  return { detail, orders: openOrders(detail.data, tableId, entries) };
+}
+
+/**
  * Table ViewModel (waiter): the table's open orders, the order being taken for one diner and
  * sending it to the kitchen (or to the outbox without internet), and marking dishes served.
  * Errors come back as messages for the screen to show.
@@ -37,8 +47,7 @@ export function useTableOrder(tableId: number, tableNumber: string) {
   const offline = useIsOffline();
   const { user } = useAuth();
   const { categories } = useMenu();
-  const detail = useCachedResource(`waiter-table-${tableId}`, (signal) => getTable(tableId, signal), { persist: true });
-  const { entries } = useOutbox();
+  const { detail, orders } = useOpenOrders(tableId);
   useFavoritesVersion();
   useEffect(() => loadFavorites(), []);
 
@@ -50,7 +59,6 @@ export function useTableOrder(tableId: number, tableNumber: string) {
   const [sentLabels, setSentLabels] = useState<string[]>([]);
   const [serving, setServing] = useState<number[]>([]);
 
-  const orders = openOrders(detail.data, tableId, entries);
   const tableTotal = orders.reduce((sum, o) => sum + o.total, 0);
   // Diners sent from here count right away, before the table's list reloads.
   const known = [...orders, ...sentLabels.filter((l) => !orders.some((o) => o.label === l)).map((l) => ({ label: l }))];

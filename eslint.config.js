@@ -51,7 +51,15 @@ module.exports = defineConfig([
     rules: forbid(['@/app', '@/components'], 'ViewModels: exponen estado; no dibujan pantallas.'),
   },
   {
+    // MVVM: a view draws and reacts; data and the server are reached through a hook.
     files: ['src/components/**/*.{ts,tsx}'],
-    rules: forbid(['@/app'], 'Componentes: no dependen de las pantallas (rutas).'),
+    rules: forbid(
+      ['@/app', '@/api', '@/data'],
+      'Componentes: no dependen de las pantallas; la API y los datos se usan desde un hook (src/hooks).',
+    ),
+  },
+  {
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: forbid(['@/api', '@/data'], 'Pantallas: la API y los datos se usan desde un hook (src/hooks).'),
   },
 ]);

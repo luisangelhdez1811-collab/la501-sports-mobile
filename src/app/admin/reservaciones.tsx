@@ -2,17 +2,11 @@ import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import {
-  getReservations,
-  updateReservationStatus,
-  type AdminReservation,
-  type ReservationStatus,
-} from '@/api/admin';
-import { errorMessage } from '@/api/client';
+import type { AdminReservation, ReservationStatus } from '@/api/admin';
 import { AdminColors, Panel, PanelState, Segmented, StatCard, StatGrid, Tag } from '@/components/admin/admin-ui';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAdminResource } from '@/hooks/use-admin-resource';
+import { useChangeReservationStatus, useReservations } from '@/hooks/use-admin';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { formatSlot } from '@/utils/opening-hours';
 
@@ -49,7 +43,7 @@ function formatDate(iso: string) {
 
 export default function AdminReservationsScreen() {
   const [status, setStatus] = useState<ReservationStatus>('pendiente');
-  const list = useAdminResource(`reservations-${status}`, (signal) => getReservations(status, signal));
+  const list = useReservations(status);
   const counts = list.data?.counts;
   const items = list.data?.items ?? [];
 
@@ -105,7 +99,9 @@ export default function AdminReservationsScreen() {
 
 function ReservationCard({ reservation, onChanged }: { reservation: AdminReservation; onChanged: () => void }) {
   const { colors } = useBrandTheme();
+  // Which button is working, to show its spinner.
   const [busy, setBusy] = useState<ReservationStatus | null>(null);
+  const { run: changeStatus } = useChangeReservationStatus();
   const status = STATUS[reservation.status];
 
   const change = (to: ReservationStatus, label: string) => {
@@ -116,14 +112,10 @@ function ReservationCard({ reservation, onChanged }: { reservation: AdminReserva
         style: to === 'cancelada' ? 'destructive' : 'default',
         onPress: async () => {
           setBusy(to);
-          try {
-            await updateReservationStatus(reservation.id, to);
-            onChanged();
-          } catch (err) {
-            Alert.alert('No se pudo actualizar', errorMessage(err));
-          } finally {
-            setBusy(null);
-          }
+          const failed = await changeStatus(reservation.id, to);
+          setBusy(null);
+          if (failed) Alert.alert('No se pudo actualizar', failed);
+          else onChanged();
         },
       },
     ]);

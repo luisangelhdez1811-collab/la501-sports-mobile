@@ -9,7 +9,7 @@ import { menuPrice } from '@/domain/menu-options';
 import { searchProducts } from '@/domain/menu-search';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import type { Category, MenuSection, Product, Station } from '@/types/product';
-import { menuImage } from '@/data/image-source';
+import { menuImage } from '@/utils/image-source';
 
 const STATION_LABELS: Record<Station, string> = { cocina: 'Cocina', barra: 'Barra', ninguna: 'Entrega directa' };
 const FREQUENT = '★ Frecuentes';

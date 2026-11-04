@@ -1,6 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { getPromotions } from '@/api/catalog';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { OfflineBanner } from '@/components/brand/offline-banner';
@@ -9,27 +8,16 @@ import { DividerLabel } from '@/components/brand/typography';
 import { NewsletterCard } from '@/components/promo/newsletter-card';
 import { PromoCarousel } from '@/components/promo/promo-carousel';
 import { Brand, BrandFonts } from '@/constants/brand';
-import { isPromotionActive } from '@/domain/promotions';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
+import { usePromotions } from '@/hooks/use-content';
 import { useCart } from '@/hooks/use-cart';
 import { useStorePolicy } from '@/hooks/use-store-policy';
-import type { Promotion } from '@/types/product';
 
 export default function PromotionsScreen() {
   const { colors } = useBrandTheme();
   const cart = useCart();
   const policy = useStorePolicy();
-  const {
-    data: loaded,
-    error,
-    refreshing,
-    stale,
-    reload,
-    refresh,
-  } = useCachedResource<Promotion[]>('promotions', getPromotions);
-  // A copy loaded earlier may hold offers that ended since: never show or sell those.
-  const promotions = loaded?.filter((promo) => isPromotionActive(promo)) ?? null;
+  const { data: promotions, error, refreshing, stale, reload, refresh } = usePromotions();
 
   return (
     <BrandScreen refreshing={refreshing} onRefresh={refresh} contentStyle={styles.content}>

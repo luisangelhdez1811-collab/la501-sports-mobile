@@ -1,10 +1,7 @@
 import { Redirect, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { updatePassword } from '@/api/account';
-import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormCard } from '@/components/brand/form-card';
@@ -12,11 +9,9 @@ import { FormMessage } from '@/components/brand/form-message';
 import { PasswordRules } from '@/components/brand/password-rules';
 import { TextField } from '@/components/brand/text-field';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { useChangePassword } from '@/hooks/use-account-actions';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { isStrongPassword } from '@/utils/validation';
-
-type Message = { type: 'error' | 'success'; text: string } | null;
 
 function CardHeader({ icon, title, description }: { icon: SymbolViewProps['name']; title: string; description: string }) {
   const { colors } = useBrandTheme();
@@ -36,35 +31,9 @@ function CardHeader({ icon, title, description }: { icon: SymbolViewProps['name'
 export default function SettingsScreen() {
   const { colors } = useBrandTheme();
   const { status, user } = useAuth();
-  const [current, setCurrent] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<Message>(null);
+  const { current, setCurrent, password, setPassword, confirm, setConfirm, saving, message, save } = useChangePassword();
 
   if (status === 'guest') return <Redirect href="/login" />;
-
-  const savePassword = async () => {
-    if (!current) return setPasswordMessage({ type: 'error', text: 'Escribe tu contraseña actual.' });
-    if (!isStrongPassword(password))
-      return setPasswordMessage({ type: 'error', text: 'La nueva contraseña no cumple los requisitos.' });
-    if (password !== confirm)
-      return setPasswordMessage({ type: 'error', text: 'Las contraseñas no coinciden.' });
-
-    setSavingPassword(true);
-    setPasswordMessage(null);
-    try {
-      await updatePassword({ current, password, passwordConfirmation: confirm });
-      setPasswordMessage({ type: 'success', text: 'Contraseña actualizada.' });
-      setCurrent('');
-      setPassword('');
-      setConfirm('');
-    } catch (err) {
-      setPasswordMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setSavingPassword(false);
-    }
-  };
 
   return (
     <BrandScreen showBack>
@@ -108,8 +77,8 @@ export default function SettingsScreen() {
           autoComplete="new-password"
           textContentType="newPassword"
         />
-        {!!passwordMessage && <FormMessage type={passwordMessage.type}>{passwordMessage.text}</FormMessage>}
-        <BrandButton title="Guardar contraseña" onPress={savePassword} loading={savingPassword} />
+        {!!message && <FormMessage type={message.type}>{message.text}</FormMessage>}
+        <BrandButton title="Guardar contraseña" onPress={save} loading={saving} />
       </FormCard>
 
       {/* Customer rights screen: staff exercise theirs with the employer, not in the app. */}

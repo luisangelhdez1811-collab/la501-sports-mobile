@@ -27,6 +27,9 @@ export type LegalDocument = {
 export const PRIVACY_EMAIL = 'Equipolapapa501@gmail.com';
 export const PRIVACY_PHONE = '771 109 7827';
 
+/** Goes with every drink with alcohol the app shows or sells (M-18). */
+export const ADULTS_ONLY = 'Venta solo a mayores de 18 años.';
+
 export const PRIVACY_NOTICE: LegalDocument = {
   lead: 'Aviso de',
   accent: 'privacidad',

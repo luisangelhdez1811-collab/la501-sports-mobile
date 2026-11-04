@@ -1,20 +1,14 @@
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { requestPhoneOtp, updatePhone } from '@/api/account';
-import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { FormMessage } from '@/components/brand/form-message';
 import { TextField } from '@/components/brand/text-field';
 import { TextLink } from '@/components/brand/text-link';
-import { CodeField, isCompleteCode, ResendCode } from '@/components/verification/code-input';
+import { CodeField, ResendCode } from '@/components/verification/code-input';
 import { BrandFonts } from '@/constants/brand';
+import { usePhoneChange } from '@/hooks/use-account-actions';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCooldown } from '@/hooks/use-cooldown';
-import { isPhone, normalizePhone } from '@/utils/validation';
-
-type Step = 'idle' | 'phone' | 'code';
-type Message = { type: 'error' | 'success'; text: string } | null;
+import { normalizePhone } from '@/utils/validation';
 
 /**
  * The account's phone, with "Cambiar teléfono": a code goes to the NEW number and the
@@ -22,53 +16,10 @@ type Message = { type: 'error' | 'success'; text: string } | null;
  */
 export function PhoneChange({ current, onChanged }: { current: string | null; onChanged: () => void }) {
   const { colors } = useBrandTheme();
-  const cooldown = useCooldown();
-  const [step, setStep] = useState<Step>('idle');
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<Message>(null);
-
-  const sendCode = async () => {
-    if (!isPhone(phone)) return setMessage({ type: 'error', text: 'El teléfono debe tener 10 dígitos.' });
-    if (phone === current) return setMessage({ type: 'error', text: 'Ese ya es tu teléfono actual.' });
-    setBusy(true);
-    setMessage(null);
-    try {
-      await cooldown.track(() => requestPhoneOtp(phone));
-      if (step === 'code') setMessage({ type: 'success', text: 'Te enviamos un código nuevo.' });
-      setStep('code');
-    } catch (err) {
-      setMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const confirm = async () => {
-    if (!isCompleteCode(code)) return setMessage({ type: 'error', text: 'Escribe el código de 6 dígitos que te enviamos.' });
-    setBusy(true);
-    setMessage(null);
-    try {
-      await updatePhone(phone, code);
-      setStep('idle');
-      setPhone('');
-      setCode('');
-      setMessage({ type: 'success', text: 'Teléfono actualizado.' });
-      onChanged();
-    } catch (err) {
-      setMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const cancel = () => {
-    setStep('idle');
-    setPhone('');
-    setCode('');
-    setMessage(null);
-  };
+  const { step, phone, setPhone, code, setCode, busy, message, cooldownRemaining, start, sendCode, confirm, cancel } = usePhoneChange(
+    current,
+    onChanged,
+  );
 
   return (
     <View style={styles.container}>
@@ -80,10 +31,7 @@ export function PhoneChange({ current, onChanged }: { current: string | null; on
           title={current ? 'Cambiar teléfono' : 'Agregar teléfono'}
           variant="secondary"
           icon={{ ios: 'phone', android: 'call', web: 'call' }}
-          onPress={() => {
-            setMessage(null);
-            setStep('phone');
-          }}
+          onPress={start}
         />
       )}
 
@@ -111,7 +59,7 @@ export function PhoneChange({ current, onChanged }: { current: string | null; on
           </Text>
           <CodeField value={code} onChange={setCode} />
           <BrandButton title="Confirmar teléfono" onPress={confirm} loading={busy} />
-          <ResendCode remaining={cooldown.remaining} onResend={sendCode} />
+          <ResendCode remaining={cooldownRemaining} onResend={sendCode} />
           <TextLink label="Cancelar" muted onPress={cancel} />
         </>
       )}
