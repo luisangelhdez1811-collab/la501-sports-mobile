@@ -11,6 +11,7 @@ import { getPromotions } from '@/api/catalog';
 import { getRestaurantInfo } from '@/api/info';
 import { NavDrawer } from '@/components/brand/nav-drawer';
 import { LegalUpdateSheet } from '@/components/legal/legal-update-sheet';
+import { CustomerAlerts, WaiterAlerts } from '@/components/notifications/order-alerts';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { OutboxSync } from '@/components/waiter/outbox-sync';
 import { BrandPalettes } from '@/constants/brand';
@@ -21,6 +22,7 @@ import { CartProvider } from '@/hooks/use-cart';
 import { DrawerProvider } from '@/hooks/use-drawer';
 import { LegalUpdateProvider } from '@/hooks/use-legal-update';
 import { preloadMenu } from '@/hooks/use-menu';
+import { useNotificationTaps } from '@/hooks/use-order-alerts';
 import { preloadStorePolicy } from '@/hooks/use-store-policy';
 import { pruneRetiredCache } from '@/data/offline-cache';
 
@@ -44,6 +46,7 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { scheme } = useBrandTheme();
+  useNotificationTaps();
   const { status, user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isWaiter = user?.role === 'mesero';
@@ -110,6 +113,9 @@ function RootNavigator() {
           <NavDrawer />
           {/* Sends the waiter's orders saved without a connection. */}
           {isWaiter && <OutboxSync />}
+          {/* Notifications on the phone: dishes ready (waiter), order on its way (customer). */}
+          {isWaiter && <WaiterAlerts />}
+          {isCustomer && <CustomerAlerts />}
           {/* New Aviso or Terms: the customer accepts them before going on. */}
           {isCustomer && <LegalUpdateSheet />}
         </>

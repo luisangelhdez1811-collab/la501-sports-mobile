@@ -4,6 +4,8 @@ import { useState } from 'react';
 
 import { ApiError, errorMessage } from '@/api/client';
 import { checkout, type CheckoutResult, type PaymentMethod } from '@/api/orders';
+import { followOrder } from '@/data/followed-orders';
+import { askNotificationPermission } from '@/data/local-notifications';
 import { hasNotes, isAlcoholic, missingConsent, requiresAdult } from '@/domain/checkout-rules';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
@@ -112,6 +114,10 @@ export function useCheckout() {
   };
 
   const finish = async (result: CheckoutResult) => {
+    // From now on the app tells the customer when the order leaves the kitchen; the system
+    // asks for permission here, when the reason is obvious.
+    await followOrder(result.trackingToken);
+    askNotificationPermission();
     const track = () => router.replace({ pathname: '/pedido/[token]', params: { token: result.trackingToken } });
     if (result.paymentMethod !== 'tarjeta') {
       // Cash: the order is placed as soon as the server answers.

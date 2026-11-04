@@ -125,7 +125,10 @@ export default function OrderTrackingScreen() {
           )}
 
           {!FINAL_STATUSES.includes(tracking.status) && (
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>Esta pantalla se actualiza sola.</Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              Esta pantalla se actualiza sola. Te avisamos con una notificación cuando tu pedido salga de cocina y
+              cuando vaya en camino.
+            </Text>
           )}
 
           {tracking.status === 'delivered' && !!tracking.folio && (

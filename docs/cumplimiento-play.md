@@ -129,11 +129,24 @@ El `.aab` no debe pedir cámara, micrófono, almacenamiento ni ubicación. En
   permisos.
 - `android.blockedPermissions` quita del manifiesto: `CAMERA`, `RECORD_AUDIO`,
   `READ/WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES/VIDEO/AUDIO`,
-  `READ_MEDIA_VISUAL_USER_SELECTED`, `ACCESS_FINE/COARSE_LOCATION` y `SYSTEM_ALERT_WINDOW`
-  (este último solo lo usa el menú de desarrollo; la build de desarrollo lo conserva).
+  `READ_MEDIA_VISUAL_USER_SELECTED`, `ACCESS_FINE/COARSE_LOCATION`, `SYSTEM_ALERT_WINDOW`
+  (solo lo usa el menú de desarrollo; la build de desarrollo lo conserva) y
+  `RECEIVE_BOOT_COMPLETED` (la app no programa avisos a futuro).
+- `expo-notifications` agrega `POST_NOTIFICATIONS`: Android 13+ pregunta al usuario. La app
+  lo pide al confirmar un pedido (cliente) y al abrir las mesas (mesero).
 
-Comprobado con `npx expo config --type introspect`: en el manifiesto solo quedan `INTERNET`
-y `VIBRATE`.
+Permisos esperados en el `.aab`: `INTERNET`, `VIBRATE` y `POST_NOTIFICATIONS`.
+`npx expo config --type introspect` no muestra los que agregan las librerías al compilar;
+confírmalos en el Explorador de app bundle.
+
+### Notificaciones
+
+Son **locales**: el teléfono revisa el pedido (cliente, cada 30 s) o las mesas (mesero,
+cada 20 s) y crea el aviso. No hay servidor de push, no se pide un token del dispositivo y
+no salen datos del teléfono, así que en «Seguridad de los datos» **no cambia nada**
+(identificadores: No). Funcionan con la app abierta o recién minimizada; con la app
+cerrada no llegan. Para avisos con la app cerrada hace falta push (Firebase Cloud Messaging
+y que el back mande el aviso), y entonces sí hay que declarar «ID del dispositivo».
 
 Después de cada build, revisa los permisos en el Explorador de app bundle. Si aparece uno
 de estos, revisa `blockedPermissions` antes de subir.

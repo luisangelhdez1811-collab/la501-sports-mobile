@@ -178,6 +178,7 @@ export const PRIVACY_NOTICE: LegalDocument = {
         'No usa publicidad, analítica ni herramientas de rastreo.',
         'No pide su ubicación ni acceso a la cámara, el micrófono o sus contactos.',
         'La foto de perfil se elige con el selector de fotos del sistema y solo se envía la que usted elige.',
+        'Si usted lo permite, muestra notificaciones sobre su pedido (cuando sale de cocina y cuando va en camino). Las genera el propio teléfono: no se envía ningún identificador del dispositivo ni se usan para promociones.',
       ],
     },
     { type: 'p', text: 'Para funcionar mejor guarda en su teléfono:' },
