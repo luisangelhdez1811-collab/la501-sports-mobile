@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { OrderSummary } from '@/api/account';
 import { StatusBadge } from '@/components/brand/status-badge';
 import { BrandFonts, Radius } from '@/constants/brand';
+import { formatMoney } from '@/domain/money';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 const dateFormat = new Intl.DateTimeFormat('es-MX', {
@@ -13,10 +14,6 @@ const dateFormat = new Intl.DateTimeFormat('es-MX', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-export function formatMoney(value: number) {
-  return `$${value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 /** Order rows as cards (a table doesn't fit a phone). Tapping opens live tracking. */
 export function OrdersList({ orders }: { orders: OrderSummary[] }) {

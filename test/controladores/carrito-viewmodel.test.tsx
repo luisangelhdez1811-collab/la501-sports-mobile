@@ -12,7 +12,7 @@ import { papas, platillo } from '../fixtures/productos';
 
 const mockDisco = new Map<string, { data: unknown; savedAt: number }>();
 
-jest.mock('@/utils/offline-cache', () => ({
+jest.mock('@/data/offline-cache', () => ({
   readCache: jest.fn(async (clave: string) => mockDisco.get(clave) ?? null),
   writeCache: jest.fn((clave: string, data: unknown) => {
     mockDisco.set(clave, { data: JSON.parse(JSON.stringify(data)), savedAt: Date.now() });

@@ -12,7 +12,7 @@ import {
   USER_CACHE_KEYS,
   USER_CACHE_PREFIXES,
   writeCache,
-} from '@/utils/offline-cache';
+} from '@/data/offline-cache';
 
 const SESSION_USER_KEY = 'session-user';
 

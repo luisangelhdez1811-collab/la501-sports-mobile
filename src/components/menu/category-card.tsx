@@ -5,7 +5,7 @@ import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import type { Category } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
 type CategoryCardProps = {
   category: Category;

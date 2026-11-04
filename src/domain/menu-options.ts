@@ -1,3 +1,4 @@
+import { formatPrice } from '@/domain/money';
 import type { MenuOption, OptionGroup, Product } from '@/types/product';
 
 /**
@@ -145,10 +146,6 @@ export function selectionKey(selection: Selection) {
     .sort()
     .join('-');
   return `${selection.variantId ?? ''}|${options}`;
-}
-
-export function formatPrice(n: number) {
-  return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 /** Price on the menu card: "Vaso $80 · Litro $160", or just "$155". */

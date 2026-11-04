@@ -31,7 +31,7 @@ import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Category, Product } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
 import { groupBySubcategory } from '@/utils/subcategories';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
 type Row = { type: 'subcategory'; group: Category } | { type: 'product'; product: Product };
 

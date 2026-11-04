@@ -7,7 +7,7 @@ import { discardRejectedOrder, loadOutbox, retryEntry, syncOutbox, useOutbox } f
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 
 const RETRY_MS = 30_000;
 const AMBER = '#F59E0B';

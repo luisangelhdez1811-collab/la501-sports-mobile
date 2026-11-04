@@ -22,7 +22,7 @@ import { DrawerProvider } from '@/hooks/use-drawer';
 import { LegalUpdateProvider } from '@/hooks/use-legal-update';
 import { preloadMenu } from '@/hooks/use-menu';
 import { preloadStorePolicy } from '@/hooks/use-store-policy';
-import { pruneRetiredCache } from '@/utils/offline-cache';
+import { pruneRetiredCache } from '@/data/offline-cache';
 
 SplashScreen.preventAutoHideAsync();
 

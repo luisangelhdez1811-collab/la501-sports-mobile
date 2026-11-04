@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getRecommendations } from '@/api/catalog';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormCard } from '@/components/brand/form-card';
@@ -24,7 +24,7 @@ import { useCart } from '@/hooks/use-cart';
 import { useIsOffline } from '@/hooks/use-connectivity';
 import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Product } from '@/types/product';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
 function EmptyCart() {
   const { colors } = useBrandTheme();

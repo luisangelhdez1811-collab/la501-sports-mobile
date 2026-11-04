@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getProductDetail, type ProductDetail } from '@/api/catalog';
 import type { AlcoholPolicy } from '@/api/info';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney, formatPrice } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { AlcoholNotice } from '@/components/legal/alcohol-notice';
@@ -30,7 +30,6 @@ import {
   canAddMore,
   countOf,
   createSelection,
-  formatPrice,
   groupRule,
   groupTotal,
   missingChoices,
@@ -41,7 +40,7 @@ import {
   unitPrice,
   type Selection,
 } from '@/domain/menu-options';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
 type ProductDetailSheetProps = {
   product: Product | null;

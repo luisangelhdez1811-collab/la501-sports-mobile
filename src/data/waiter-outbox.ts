@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 import { ApiError, errorMessage } from '@/api/client';
 import { sendToKitchen, type KitchenItem } from '@/api/waiter';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 /**
  * Orders the waiter took while the server couldn't be reached. They're saved on the phone

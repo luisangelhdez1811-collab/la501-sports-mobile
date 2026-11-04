@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 
 import type { Category } from '@/types/product';
-import { isBundledImage } from '@/utils/image-source';
+import { isBundledImage } from '@/data/image-source';
 
 const BATCH_SIZE = 12;
 // URLs already handed to the image cache this session (the native cache skips files it

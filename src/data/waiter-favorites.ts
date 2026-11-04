@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 /**
  * How often each dish is ordered from this phone, so the "Frecuentes" list in "Tomar

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getWaiterPerformance, type WaiterPeriod } from '@/api/admin';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { AdminColors, Panel, PanelState, Segmented, StatCard, StatGrid, Tag } from '@/components/admin/admin-ui';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';

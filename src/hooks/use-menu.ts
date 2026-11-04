@@ -8,7 +8,7 @@ import { SNAPSHOT_AT, snapshotMenu } from '@/data/menu-snapshot';
 import { syncDetails } from '@/data/product-details';
 import { useOnReconnect } from '@/hooks/use-connectivity';
 import type { Category } from '@/types/product';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 const CACHE_MS = 10 * 60 * 1000;
 // A full menu load costs ~18 of the API's 60 requests/min, so quick repeated

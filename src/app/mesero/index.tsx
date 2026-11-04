@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 
 import { errorMessage } from '@/api/client';
 import { addTable, getTables, removeTable, type TablesMap } from '@/api/waiter';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { AdminTitle, Segmented } from '@/components/admin/admin-ui';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';

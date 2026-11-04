@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { BottomTabInset } from '@/constants/theme';
 import { useCart } from '@/hooks/use-cart';

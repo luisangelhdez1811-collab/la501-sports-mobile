@@ -2,14 +2,14 @@ import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { linePrice } from '@/domain/cart';
 import { displayName, EMPTY_SELECTION, optionsSummary } from '@/domain/menu-options';
 import { useCart, type CartItem } from '@/hooks/use-cart';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
 function StepButton({ symbol, label, filled, onPress }: { symbol: '−' | '+'; label: string; filled?: boolean; onPress: () => void }) {
   const { colors } = useBrandTheme();

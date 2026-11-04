@@ -18,13 +18,13 @@ import { getProductDetail, type ProductDetail } from '@/api/catalog';
 import { BrandButton } from '@/components/brand/brand-button';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { formatPrice } from '@/domain/money';
 import { getCachedDetail, loadDetails, saveDetail } from '@/data/product-details';
 import {
   addOne,
   canAddMore,
   countOf,
   createSelection,
-  formatPrice,
   groupRule,
   groupTotal,
   missingChoices,
@@ -35,17 +35,12 @@ import {
   unitPrice,
   type Selection,
 } from '@/domain/menu-options';
+import type { DishChoice } from '@/domain/waiter-order';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
-/** Everything chosen for one dish. */
-export type DishChoice = {
-  excluded: Ingredient[];
-  notes: string;
-  quantity: number;
-  selection: Selection;
-};
+export type { DishChoice } from '@/domain/waiter-order';
 
 type CustomizeSheetProps = {
   product: Product | null;

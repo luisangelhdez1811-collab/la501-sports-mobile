@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { getProductDetail, type ProductDetail } from '@/api/catalog';
 import { ApiError } from '@/api/client';
 import { SNAPSHOT_AT, snapshotDetails } from '@/data/menu-snapshot';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 /**
  * Ingredients + subcategory of every dish, so the dish card, the "ingredientes a incluir"

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { Panel, PanelState, Segmented, StatCard, StatGrid } from '@/components/admin/admin-ui';
 import { BarChart } from '@/components/admin/bar-chart';
 import { AdminScreen } from '@/components/admin/admin-screen';

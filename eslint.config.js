@@ -31,6 +31,14 @@ module.exports = defineConfig([
     ),
   },
   {
+    // Small helpers (validation, hours, image URLs) any layer may use: pure, like the domain.
+    files: ['src/utils/**/*.ts'],
+    rules: forbid(
+      ['react', 'react-native', 'expo-*', '@expo/*', '@/app', '@/components', '@/hooks', '@/data', '@/api'],
+      'Utilidades: funciones puras; el almacenamiento va en src/data.',
+    ),
+  },
+  {
     files: ['src/api/**/*.ts'],
     rules: forbid(['@/app', '@/components', '@/hooks', '@/data'], 'API: solo habla con el servidor; no conoce la interfaz.'),
   },

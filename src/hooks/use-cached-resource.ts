@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { errorMessage } from '@/api/client';
 import { useOnReconnect } from '@/hooks/use-connectivity';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 type ResourceState<T> = {
   data: T | null;

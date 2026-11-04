@@ -6,7 +6,7 @@ import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import type { Product } from '@/types/product';
-import { menuImage } from '@/utils/image-source';
+import { menuImage } from '@/data/image-source';
 
 type ProductCardProps = {
   product: Product;

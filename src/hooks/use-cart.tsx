@@ -15,7 +15,7 @@ import { cartSignature, newClientRef } from '@/domain/checkout-rules';
 import { completeProduct } from '@/domain/menu-layout';
 import { onSignedOut } from '@/hooks/use-auth';
 import type { Product } from '@/types/product';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 export type { CartItem } from '@/domain/cart';
 
