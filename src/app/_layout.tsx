@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { getPromotions } from '@/api/catalog';
 import { getRestaurantInfo } from '@/api/info';
 import { NavDrawer } from '@/components/brand/nav-drawer';
+import { LegalUpdateSheet } from '@/components/legal/legal-update-sheet';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { OutboxSync } from '@/components/waiter/outbox-sync';
 import { BrandPalettes } from '@/constants/brand';
@@ -18,7 +19,9 @@ import { BrandThemeProvider, useBrandTheme } from '@/hooks/use-brand-theme';
 import { preloadResource } from '@/hooks/use-cached-resource';
 import { CartProvider } from '@/hooks/use-cart';
 import { DrawerProvider } from '@/hooks/use-drawer';
+import { LegalUpdateProvider } from '@/hooks/use-legal-update';
 import { preloadMenu } from '@/hooks/use-menu';
+import { preloadStorePolicy } from '@/hooks/use-store-policy';
 import { pruneRetiredCache } from '@/utils/offline-cache';
 
 SplashScreen.preventAutoHideAsync();
@@ -28,9 +31,11 @@ export default function RootLayout() {
     <BrandThemeProvider>
       <AuthProvider>
         <CartProvider>
-          <DrawerProvider>
-            <RootNavigator />
-          </DrawerProvider>
+          <LegalUpdateProvider>
+            <DrawerProvider>
+              <RootNavigator />
+            </DrawerProvider>
+          </LegalUpdateProvider>
         </CartProvider>
       </AuthProvider>
     </BrandThemeProvider>
@@ -63,6 +68,7 @@ function RootNavigator() {
     if (isWaiter) return;
     preloadResource('promotions', getPromotions);
     preloadResource('restaurant-info', getRestaurantInfo, { persist: true });
+    preloadStorePolicy();
   }, [status, isAdmin, isWaiter]);
 
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -104,6 +110,8 @@ function RootNavigator() {
           <NavDrawer />
           {/* Sends the waiter's orders saved without a connection. */}
           {isWaiter && <OutboxSync />}
+          {/* New Aviso or Terms: the customer accepts them before going on. */}
+          {isCustomer && <LegalUpdateSheet />}
         </>
       )}
       {/* Rendered last so it sits above the native tabs. */}

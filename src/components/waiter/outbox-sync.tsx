@@ -100,7 +100,7 @@ export function OutboxBanner({ tableId }: { tableId?: number }) {
               <Text style={[styles.action, { color: Brand.blue }]}>Reintentar</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => discardRejectedOrder(entry.ref)} hitSlop={6}>
-              <Text style={[styles.action, { color: Brand.red }]}>Descartar pedido</Text>
+              <Text style={[styles.action, { color: colors.danger }]}>Descartar pedido</Text>
             </Pressable>
           </View>
         </View>

@@ -134,7 +134,7 @@ export default function ReserveScreen() {
         <FormCard>
           <View style={styles.header}>
             <View style={[styles.headerIcon, { backgroundColor: `${Brand.green}1F`, borderColor: `${Brand.green}55` }]}>
-              <SymbolView name={{ ios: 'calendar', android: 'event', web: 'event' }} size={18} tintColor={Brand.greenLight} />
+              <SymbolView name={{ ios: 'calendar', android: 'event', web: 'event' }} size={18} tintColor={colors.success} />
             </View>
             <View style={styles.headerText}>
               <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
@@ -209,12 +209,12 @@ export default function ReserveScreen() {
 
           <View style={styles.group}>
             <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Zona<Text style={{ color: Brand.orange }}> *</Text>
+              Zona<Text style={{ color: colors.accent }}> *</Text>
             </Text>
             <View style={styles.zones} accessibilityRole="radiogroup">
               {ZONES.map((option) => {
                 const active = option.value === zone;
-                const tint = active ? Brand.greenLight : colors.textSecondary;
+                const tint = active ? colors.success : colors.textSecondary;
                 return (
                   <Pressable
                     key={option.value}
@@ -248,7 +248,7 @@ export default function ReserveScreen() {
 
           {isGroup ? (
             <>
-              <Text style={styles.groupNote}>
+              <Text style={[styles.groupNote, { color: colors.accent }]}>
                 Para grupos grandes te redirigiremos a WhatsApp para coordinar mejor.
               </Text>
               <BrandButton
@@ -283,10 +283,10 @@ export default function ReserveScreen() {
           <SymbolView
             name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' }}
             size={18}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
           />
           <Text style={[styles.noticeText, { color: colors.textSecondary }]}>
-            <Text style={styles.noticeStrong}>Importante: </Text>
+            <Text style={[styles.noticeStrong, { color: colors.accent }]}>Importante: </Text>
             Las reservaciones están sujetas a disponibilidad y confirmación por parte de nuestro personal. Te
             contactaremos para confirmar tu mesa.
           </Text>
@@ -363,7 +363,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   groupNote: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 14,
     lineHeight: 20,
@@ -384,7 +383,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   noticeStrong: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
   },
   privacy: {

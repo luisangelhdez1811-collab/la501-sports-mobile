@@ -15,10 +15,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getProductDetail, type ProductDetail } from '@/api/catalog';
+import type { AlcoholPolicy } from '@/api/info';
 import { formatMoney } from '@/components/account/orders-list';
 import { BrandButton } from '@/components/brand/brand-button';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
+import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { isAlcoholicProduct } from '@/domain/checkout-rules';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
 import { getCachedDetail, loadDetails, saveDetail } from '@/data/product-details';
@@ -60,12 +63,13 @@ type ProductDetailSheetProps = {
   confirmLabel?: string;
   /** Who the checklist speaks to, e.g. "Desmarca lo que el cliente no quiera." */
   ingredientsHint?: string;
+  /** Customer menu: legend on drinks with alcohol, and no adding while sales are closed. */
+  alcohol?: AlcoholPolicy;
 };
 
 const ingredientKey = (ingredient: Ingredient) => String(ingredient.id ?? ingredient.name);
 const MAX_QUANTITY = 50;
 const MAX_NOTES = 100;
-const AMBER = '#D97706';
 
 function IngredientToggle({
   ingredient,
@@ -182,6 +186,7 @@ export function ProductDetailSheet({
   withQuantity = false,
   initialQuantity = 1,
   onRemove,
+  alcohol,
 }: ProductDetailSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
@@ -259,7 +264,9 @@ export function ProductDetailSheet({
   const meta = [product?.category, detail?.subcategory].filter(Boolean).join(' · ');
   const ingredients = detail?.ingredients ?? [];
   // Checkout needs the server id; unavailable dishes can't be ordered either.
-  const canOrder = !!product && product.available && product.id !== null;
+  const withAlcohol = !!alcohol && !!product && isAlcoholicProduct(product);
+  const alcoholClosed = withAlcohol && !alcohol.salesOpen;
+  const canOrder = !!product && product.available && product.id !== null && !alcoholClosed;
   // Required lists block adding; included lists left empty are only reminded.
   const missing = product ? missingChoices(product, selection) : [];
   const forgotten = product ? reminders(product, selection) : [];
@@ -302,7 +309,7 @@ export function ProductDetailSheet({
 
               <View style={styles.body}>
                 <View style={styles.titleBlock}>
-                  {!!meta && <Text style={styles.meta}>{meta}</Text>}
+                  {!!meta && <Text style={[styles.meta, { color: colors.accent }]}>{meta}</Text>}
                   <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">
                     {product.name}
                   </Text>
@@ -315,7 +322,7 @@ export function ProductDetailSheet({
                       },
                     ]}>
                     <View style={[styles.dot, { backgroundColor: product.available ? Brand.greenLight : Brand.red }]} />
-                    <Text style={[styles.availabilityText, { color: product.available ? Brand.greenLight : Brand.red }]}>
+                    <Text style={[styles.availabilityText, { color: product.available ? colors.success : colors.danger }]}>
                       {product.available ? 'Disponible' : 'Agotado por ahora'}
                     </Text>
                   </View>
@@ -349,7 +356,7 @@ export function ProductDetailSheet({
                                 : { backgroundColor: colors.background, borderColor: colors.border },
                             ]}>
                             <Text style={[styles.ingredientText, { color: colors.text }]}>{variant.name}</Text>
-                            <Text style={[styles.optionDetail, { color: Brand.greenLight }]}>{formatPrice(variant.price)}</Text>
+                            <Text style={[styles.optionDetail, { color: colors.success }]}>{formatPrice(variant.price)}</Text>
                           </Pressable>
                         );
                       })}
@@ -365,7 +372,7 @@ export function ProductDetailSheet({
                         <Text
                           style={[
                             styles.groupRule,
-                            { color: groupTotal(group, selection) < group.min ? Brand.red : colors.textSecondary },
+                            { color: groupTotal(group, selection) < group.min ? colors.danger : colors.textSecondary },
                           ]}>
                           {groupRule(group)}
                         </Text>
@@ -443,11 +450,13 @@ export function ProductDetailSheet({
                 <View style={[styles.priceRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Precio</Text>
                   <Text style={[styles.price, { color: colors.text }]}>
-                    <Text style={{ color: Brand.orange }}>$</Text>
+                    <Text style={{ color: colors.accent }}>$</Text>
                     {formatMoney(price).slice(1)}
                     <Text style={[styles.currency, { color: colors.textSecondary }]}> {product.currency}</Text>
                   </Text>
                 </View>
+
+                {withAlcohol && <AlcoholNotice legend={alcohol.legend} />}
 
               </View>
             </ScrollView>
@@ -455,13 +464,17 @@ export function ProductDetailSheet({
             {/* Always in reach, without scrolling past the ingredients. */}
             {ordering && (
               <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
-                {missing.length > 0 ? (
-                  <Text style={[styles.notice, { color: Brand.red }]} accessibilityLiveRegion="polite">
+                {alcoholClosed ? (
+                  <Text style={[styles.notice, { color: colors.warning }]} accessibilityLiveRegion="polite">
+                    {alcohol.closedMessage}
+                  </Text>
+                ) : missing.length > 0 ? (
+                  <Text style={[styles.notice, { color: colors.danger }]} accessibilityLiveRegion="polite">
                     {missing[0]}
                   </Text>
                 ) : (
                   forgotten.length > 0 && (
-                    <Text style={[styles.notice, { color: AMBER }]}>Sin elegir: {forgotten.join(', ')}. Puedes agregarlo así.</Text>
+                    <Text style={[styles.notice, { color: colors.warning }]}>Sin elegir: {forgotten.join(', ')}. Puedes agregarlo así.</Text>
                   )
                 )}
                 {withQuantity && canOrder && (
@@ -601,7 +614,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   meta: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 13,
     letterSpacing: 2,

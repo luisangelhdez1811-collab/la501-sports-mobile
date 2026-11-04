@@ -1,4 +1,5 @@
 import type { CartItem } from '@/domain/cart';
+import type { Product } from '@/types/product';
 
 /**
  * What a home-delivery order must carry before it's sent (domain layer, pure functions): the
@@ -21,8 +22,7 @@ const normalize = (text: string) =>
     .toLowerCase();
 
 /** The server's word wins; without it, the category decides (except "Cero" and "Preparados"). */
-export function isAlcoholic(item: CartItem): boolean {
-  const { product } = item;
+export function isAlcoholicProduct(product: Product): boolean {
   if (typeof product.alcoholic === 'boolean') return product.alcoholic;
   if (product.kind !== 'product') return false;
   return (
@@ -32,8 +32,17 @@ export function isAlcoholic(item: CartItem): boolean {
   );
 }
 
+export function isAlcoholic(item: CartItem): boolean {
+  return isAlcoholicProduct(item.product);
+}
+
 export function requiresAdult(items: CartItem[]): boolean {
   return items.some(isAlcoholic);
+}
+
+/** The cart without its drinks with alcohol (when sales are closed, M-23). */
+export function withoutAlcohol(items: CartItem[]): CartItem[] {
+  return items.filter((item) => !isAlcoholic(item));
 }
 
 export function hasNotes(items: CartItem[]): boolean {

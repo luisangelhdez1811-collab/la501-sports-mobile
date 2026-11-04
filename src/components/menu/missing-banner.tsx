@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BrandFonts, Radius } from '@/constants/brand';
+import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 type MissingBannerProps = {
   missing: string[];
@@ -9,16 +10,17 @@ type MissingBannerProps = {
 
 /** Tells the customer some categories didn't load instead of hiding them silently. */
 export function MissingBanner({ missing, onRetry }: MissingBannerProps) {
+  const { colors } = useBrandTheme();
   if (missing.length === 0) return null;
 
   return (
-    <View style={styles.banner} accessibilityRole="alert">
-      <Text style={styles.text}>
+    <View style={[styles.banner, { borderColor: `${colors.warning}55`, backgroundColor: `${colors.warning}14` }]} accessibilityRole="alert">
+      <Text style={[styles.text, { color: colors.warning }]}>
         No pudimos cargar {missing.length === 1 ? 'la categoría' : 'las categorías'}{' '}
         <Text style={styles.names}>{missing.join(', ')}</Text>. Espera unos segundos e intenta de nuevo.
       </Text>
-      <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={8} style={styles.button}>
-        <Text style={styles.buttonText}>Reintentar</Text>
+      <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={8} style={[styles.button, { borderColor: colors.warning }]}>
+        <Text style={[styles.buttonText, { color: colors.warning }]}>Reintentar</Text>
       </Pressable>
     </View>
   );
@@ -39,7 +41,6 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    color: '#FACC15',
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 13,
     lineHeight: 19,
@@ -55,7 +56,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   buttonText: {
-    color: '#FACC15',
     fontFamily: BrandFonts.labelBold,
     fontSize: 13,
     letterSpacing: 1.2,

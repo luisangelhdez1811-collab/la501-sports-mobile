@@ -335,7 +335,7 @@ export default function TableScreen() {
                 <OutboxBanner tableId={tableId} />
                 {!!lastSent && (
                   <View style={[styles.sent, { borderColor: `${Brand.green}66`, backgroundColor: `${Brand.green}14` }]}>
-                    <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={18} tintColor={Brand.greenLight} />
+                    <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={18} tintColor={colors.success} />
                     <Text style={[styles.sentText, { color: colors.text }]}>
                       {lastSent} Sigue con <Text style={styles.dinerStrong}>{diner}</Text> o revisa las cuentas.
                     </Text>
@@ -346,7 +346,7 @@ export default function TableScreen() {
                     accessibilityRole="button"
                     onPress={() => setMode('cuentas')}
                     style={[styles.sent, { borderColor: `${Brand.green}66`, backgroundColor: `${Brand.green}14` }]}>
-                    <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} tintColor={Brand.greenLight} />
+                    <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} tintColor={colors.success} />
                     <Text style={[styles.sentText, { color: colors.text }]}>
                       <Text style={styles.dinerStrong}>{pendingDelivery.reduce((n, p) => n + p.item.quantity, 0)} por entregar</Text>{' '}
                       en esta mesa. Toca para verlos.
@@ -375,7 +375,7 @@ export default function TableScreen() {
                         {displayName(line.product, line.selection)}
                       </Text>
                       {!!customization(line) && (
-                        <Text style={styles.lineCustom} numberOfLines={2}>
+                        <Text style={[styles.lineCustom, { color: colors.accent }]} numberOfLines={2}>
                           {customization(line)}
                         </Text>
                       )}
@@ -402,7 +402,7 @@ export default function TableScreen() {
                   {diner} · {count} {count === 1 ? 'platillo' : 'platillos'}
                   {count > 0 ? (showLines ? '  ▼' : '  ▲') : ''}
                 </Text>
-                <Text style={styles.bottomValue}>{formatMoney(total)}</Text>
+                <Text style={[styles.bottomValue, { color: colors.success }]}>{formatMoney(total)}</Text>
               </Pressable>
               {count > 0 ? (
                 <Pressable
@@ -462,7 +462,7 @@ export default function TableScreen() {
                 <Text style={[styles.bottomLabel, { color: colors.textSecondary }]}>
                   Total de la mesa · {orders.length} {orders.length === 1 ? 'cuenta' : 'cuentas'}
                 </Text>
-                <Text style={styles.bottomValue}>{formatMoney(tableTotal)}</Text>
+                <Text style={[styles.bottomValue, { color: colors.success }]}>{formatMoney(tableTotal)}</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -533,7 +533,7 @@ function AccountCard({ order, onCharge }: { order: TableOrder; onCharge: () => v
             <Text style={[styles.accountQty, { color: colors.textSecondary }]}>{item.quantity}×</Text>
             <View style={styles.lineText}>
               <Text style={[styles.accountItemName, { color: colors.text }]}>{item.name}</Text>
-              {!!itemDetails(item) && <Text style={styles.lineCustom}>{itemDetails(item)}</Text>}
+              {!!itemDetails(item) && <Text style={[styles.lineCustom, { color: colors.accent }]}>{itemDetails(item)}</Text>}
               {item.id !== null && (
                 <Text style={[styles.itemStatus, { color: ITEM_STATUS[item.status].color }]}>
                   {ITEM_STATUS[item.status].label} · {STATION_LABELS[item.station]}
@@ -591,8 +591,8 @@ function ToServeCard({
   return (
     <View style={[styles.account, { borderColor: `${Brand.green}88`, backgroundColor: `${Brand.green}0F` }]}>
       <View style={styles.accountTop}>
-        <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} tintColor={Brand.greenLight} />
-        <Text style={[styles.accountName, { color: Brand.greenLight }]}>Por entregar</Text>
+        <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} tintColor={colors.success} />
+        <Text style={[styles.accountName, { color: colors.success }]}>Por entregar</Text>
         <Pressable
           accessibilityRole="button"
           disabled={disabled}
@@ -622,13 +622,13 @@ function ToServeCard({
               (disabled || busy) && styles.dim,
             ]}>
             <View style={[styles.serveBox, { borderColor: Brand.greenLight }]}>
-              {busy && <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={14} tintColor={Brand.greenLight} />}
+              {busy && <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={14} tintColor={colors.success} />}
             </View>
             <View style={styles.lineText}>
               <Text style={[styles.accountItemName, { color: colors.text }]}>
                 {item.quantity}× {item.name}
               </Text>
-              {!!itemDetails(item) && <Text style={styles.lineCustom}>{itemDetails(item)}</Text>}
+              {!!itemDetails(item) && <Text style={[styles.lineCustom, { color: colors.accent }]}>{itemDetails(item)}</Text>}
               <Text style={[styles.itemStatus, { color: colors.textSecondary }]}>
                 {order.label} · {STATION_LABELS[item.station]}
               </Text>
@@ -885,7 +885,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   lineCustom: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 12,
   },
@@ -915,7 +914,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   bottomValue: {
-    color: Brand.greenLight,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 24,
     fontVariant: ['tabular-nums'],

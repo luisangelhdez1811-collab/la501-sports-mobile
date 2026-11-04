@@ -11,9 +11,10 @@ import { FormMessage } from '@/components/brand/form-message';
 import { PasswordRules } from '@/components/brand/password-rules';
 import { OrDivider, TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
-import { Brand, BrandFonts } from '@/constants/brand';
+import { BrandFonts } from '@/constants/brand';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 import { isEmail, isPhone, isStrongPassword, normalizePhone } from '@/utils/validation';
 
 type Errors = Partial<Record<'name' | 'email' | 'phone' | 'password' | 'confirm', string>>;
@@ -28,7 +29,10 @@ function FormSection({ children }: { children: string }) {
 }
 
 export default function RegisterScreen() {
+  const { colors } = useBrandTheme();
   const { signUp } = useAuth();
+  // The versions of the texts the person accepts with the checkbox (M-22).
+  const policy = useStorePolicy();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -70,6 +74,8 @@ export default function RegisterScreen() {
         passwordConfirmation: confirm,
         promoOptIn,
         adult,
+        termsVersion: policy.termsVersion,
+        privacyVersion: policy.privacyVersion,
       });
       // Without an automatic session, send them to sign in with the new account.
       if (user) {
@@ -155,18 +161,18 @@ export default function RegisterScreen() {
 
         <FormSection>Privacidad</FormSection>
         <Checkbox checked={adult} onChange={setAdult} accessibilityLabel="Soy mayor de 18 años">
-          Soy mayor de 18 años. <Text style={styles.required}>*</Text>
+          Soy mayor de 18 años. <Text style={[styles.required, { color: colors.accent }]}>*</Text>
         </Checkbox>
         <Checkbox checked={terms} onChange={setTerms} accessibilityLabel="Acepto los términos y el aviso de privacidad">
           He leído y acepto los{' '}
-          <Text style={styles.link} onPress={() => router.push('/terminos')} accessibilityRole="link">
+          <Text style={[styles.link, { color: colors.accent }]} onPress={() => router.push('/terminos')} accessibilityRole="link">
             Términos y condiciones
           </Text>{' '}
           y el{' '}
-          <Text style={styles.link} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
+          <Text style={[styles.link, { color: colors.accent }]} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
             Aviso de privacidad
           </Text>{' '}
-          de La 501 Sports Restaurant. <Text style={styles.required}>*</Text>
+          de La 501 Sports Restaurant. <Text style={[styles.required, { color: colors.accent }]}>*</Text>
         </Checkbox>
         <Checkbox
           checked={promoOptIn}
@@ -202,11 +208,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   link: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
     textDecorationLine: 'underline',
   },
   required: {
-    color: Brand.orange,
   },
 });

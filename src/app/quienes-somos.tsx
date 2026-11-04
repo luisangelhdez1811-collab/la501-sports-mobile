@@ -114,13 +114,13 @@ export default function AboutScreen() {
 
       <View style={styles.body}>
         <View style={[styles.hashtag, { borderColor: `${Brand.orange}55`, backgroundColor: `${Brand.orange}14` }]}>
-          <Text style={styles.hashtagText}>#AquíEstáLoChido</Text>
+          <Text style={[styles.hashtagText, { color: colors.accent }]}>#AquíEstáLoChido</Text>
         </View>
 
         <View style={styles.highlights}>
           {HIGHLIGHTS.map((item) => (
             <View key={item.label} style={[card, styles.highlight]}>
-              <Text style={styles.highlightValue} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[styles.highlightValue, { color: colors.accent }]} numberOfLines={1} adjustsFontSizeToFit>
                 {item.value}
               </Text>
               <Text style={[styles.highlightLabel, { color: colors.textSecondary }]} numberOfLines={2}>
@@ -133,9 +133,9 @@ export default function AboutScreen() {
         <View style={[card, styles.homeCard]}>
           <BrandTitle lead="Más que un restaurante, somos tu" accent="segundo hogar" size={30} />
           <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-            Somos un restaurante y sports bar en Huejutla para disfrutar alitas, boneless,
-            hamburguesas y bebidas refrescantes mientras vivimos las transmisiones deportivas en
-            vivo, en un espacio pensado para reunir a toda la afición.
+            Somos un restaurante en Huejutla para disfrutar alitas, boneless y hamburguesas
+            mientras vivimos las transmisiones deportivas en vivo, en un espacio pensado para
+            reunir a toda la afición.
           </Text>
         </View>
 
@@ -181,7 +181,7 @@ export default function AboutScreen() {
                 {i < HISTORY.length - 1 && <View style={[styles.railLine, { backgroundColor: colors.border }]} />}
               </View>
               <View style={[card, styles.stepCard]}>
-                <Text style={styles.stepTag}>{step.tag}</Text>
+                <Text style={[styles.stepTag, { color: colors.accent }]}>{step.tag}</Text>
                 <Text style={[styles.stepTitle, { color: colors.text }]}>{step.title}</Text>
                 <Text style={[styles.small, { color: colors.textSecondary }]}>{step.text}</Text>
               </View>
@@ -256,7 +256,6 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   hashtagText: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 14,
     letterSpacing: 2.5,
@@ -274,7 +273,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   highlightValue: {
-    color: Brand.orange,
     fontFamily: BrandFonts.display,
     fontSize: 30,
     letterSpacing: 1,
@@ -362,7 +360,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   stepTag: {
-    color: Brand.orange,
     fontFamily: BrandFonts.display,
     fontSize: 26,
     letterSpacing: 1.5,

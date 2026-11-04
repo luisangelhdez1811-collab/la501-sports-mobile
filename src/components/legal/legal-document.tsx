@@ -12,7 +12,7 @@ function Block({ block }: { block: LegalBlock }) {
   switch (block.type) {
     case 'h2':
       return (
-        <Text style={[styles.h2, { borderBottomColor: `${Brand.orange}26` }]} accessibilityRole="header">
+        <Text style={[styles.h2, { color: colors.accent }, { borderBottomColor: `${Brand.orange}26` }]} accessibilityRole="header">
           {block.text}
         </Text>
       );
@@ -44,7 +44,7 @@ function Block({ block }: { block: LegalBlock }) {
             <View
               key={label}
               style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
-              <Text style={styles.rowLabel}>{label}</Text>
+              <Text style={[styles.rowLabel, { color: colors.accent }]}>{label}</Text>
               <Text style={[styles.rowValue, { color: colors.text }]}>{value}</Text>
             </View>
           ))}
@@ -61,7 +61,7 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
       <PageHero align="center" tag="La 501 Sports" lead={document.lead} accent={document.accent} description={document.description} />
       <View style={styles.body}>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.updated, { color: colors.textSecondary }]}>Última actualización: {document.updated}</Text>
+          <Text style={[styles.updated, { color: colors.textSecondary }]}>Última actualización: {document.updated} · Versión {document.version}</Text>
           {document.blocks.map((block, i) => (
             <Block key={i} block={block} />
           ))}
@@ -91,7 +91,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   h2: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 19,
     marginTop: 14,
@@ -139,7 +138,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   rowLabel: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 13,
   },

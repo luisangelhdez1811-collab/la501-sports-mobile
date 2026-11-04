@@ -55,7 +55,7 @@ function OfflineCard() {
       accessibilityRole="alert"
       style={[styles.offline, { backgroundColor: colors.surface, borderColor: `${Brand.red}66` }]}>
       <View style={[styles.offlineIcon, { backgroundColor: `${Brand.red}1F` }]}>
-        <SymbolView name={{ ios: 'wifi.slash', android: 'wifi_off', web: 'wifi_off' }} size={28} tintColor={Brand.red} />
+        <SymbolView name={{ ios: 'wifi.slash', android: 'wifi_off', web: 'wifi_off' }} size={28} tintColor={colors.danger} />
       </View>
       <Text style={[styles.offlineTitle, { color: colors.text }]}>Sin conexión</Text>
       <Text style={[styles.offlineText, { color: colors.textSecondary }]}>

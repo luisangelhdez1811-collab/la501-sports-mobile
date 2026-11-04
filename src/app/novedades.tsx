@@ -24,7 +24,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         <ImagePlaceholder style={styles.image} />
       )}
       <View style={styles.cardBody}>
-        {item.date && <Text style={styles.date}>{dateFormat.format(item.date)}</Text>}
+        {item.date && <Text style={[styles.date, { color: colors.accent }]}>{dateFormat.format(item.date)}</Text>}
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={3}>
           {item.title}
         </Text>
@@ -120,7 +120,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   date: {
-    color: Brand.orange,
     fontFamily: BrandFonts.label,
     fontSize: 12,
     letterSpacing: 1.5,

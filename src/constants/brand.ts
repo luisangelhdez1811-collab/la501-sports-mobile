@@ -32,10 +32,11 @@ export type BrandPalette = {
   heroTop: string;
   imagePlaceholder: string;
   scrim: string;
-  /** Orange, green and amber for TEXT on this mode's background (AA contrast). */
+  /** Orange, green, amber and red for TEXT on this mode's background (AA contrast). */
   accent: string;
   success: string;
   warning: string;
+  danger: string;
 };
 
 export const BrandPalettes: Record<BrandScheme, BrandPalette> = {
@@ -52,6 +53,7 @@ export const BrandPalettes: Record<BrandScheme, BrandPalette> = {
     accent: '#FB923C',
     success: '#4ADE80',
     warning: '#FBBF24',
+    danger: '#F87171',
   },
   light: {
     background: '#FAF7F2',
@@ -66,6 +68,7 @@ export const BrandPalettes: Record<BrandScheme, BrandPalette> = {
     accent: '#C2410C',
     success: '#15803D',
     warning: '#B45309',
+    danger: '#B91C1C',
   },
 };
 

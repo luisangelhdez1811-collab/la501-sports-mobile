@@ -218,7 +218,7 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
         pressed && styles.pressed,
       ]}>
       <View style={styles.cardTop}>
-        <Text style={[styles.number, { color: busy ? Brand.orange : colors.text }]}>{table.number}</Text>
+        <Text style={[styles.number, { color: busy ? colors.accent : colors.text }]}>{table.number}</Text>
         <View style={styles.badges}>
           {table.unsent > 0 && (
             <View style={[styles.badge, { backgroundColor: '#F59E0B' }]} accessibilityLabel={`${table.unsent} sin enviar`}>
@@ -244,7 +244,7 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
       {busy && table.ordersCount > 1 && (
         <Text style={[styles.accounts, { color: colors.textSecondary }]}>{table.ordersCount} cuentas</Text>
       )}
-      {table.toServe > 0 && <Text style={styles.toServe}>{table.toServe} por entregar</Text>}
+      {table.toServe > 0 && <Text style={[styles.toServe, { color: colors.success }]}>{table.toServe} por entregar</Text>}
       {busy && (
         <Text style={[styles.total, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
           {formatMoney(table.total)}
@@ -392,7 +392,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   toServe: {
-    color: Brand.greenLight,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 13,
   },

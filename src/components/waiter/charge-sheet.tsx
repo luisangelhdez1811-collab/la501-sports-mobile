@@ -95,7 +95,7 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerText}>
               <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
-                Cobrar <Text style={{ color: Brand.orange }}>Mesa {table.number}</Text>
+                Cobrar <Text style={{ color: colors.accent }}>Mesa {table.number}</Text>
               </Text>
               {!choosing && activeBills.length > 1 && (
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -209,7 +209,7 @@ function ModeButton({
         { borderColor: pressed ? Brand.green : colors.border, backgroundColor: pressed ? `${Brand.green}1A` : colors.background },
       ]}>
       <View style={[styles.modeIcon, { backgroundColor: `${Brand.green}22` }]}>
-        <SymbolView name={icon} size={24} tintColor={Brand.greenLight} />
+        <SymbolView name={icon} size={24} tintColor={colors.success} />
       </View>
       <View style={styles.modeText}>
         <Text style={[styles.modeTitle, { color: colors.text }]}>{title}</Text>
@@ -309,9 +309,9 @@ function BillPayment({
 
   const summary = covered
     ? missing === 0
-      ? { text: 'Monto cubierto exactamente', color: Brand.greenLight }
-      : { text: `${hasCash ? 'Cambio a entregar' : 'Pagado de más'}: ${formatMoney(-missing / 100)}`, color: Brand.greenLight }
-    : { text: `Faltan por cubrir: ${formatMoney(missing / 100)}`, color: AMBER };
+      ? { text: 'Monto cubierto exactamente', color: colors.success }
+      : { text: `${hasCash ? 'Cambio a entregar' : 'Pagado de más'}: ${formatMoney(-missing / 100)}`, color: colors.success }
+    : { text: `Faltan por cubrir: ${formatMoney(missing / 100)}`, color: colors.warning };
   const items = bill.orders.flatMap((order) => order.items);
 
   return (
@@ -343,7 +343,7 @@ function BillPayment({
 
         {askForced && (
           <View style={[styles.forcedBox, { borderColor: `${Brand.red}66`, backgroundColor: `${Brand.red}12` }]}>
-            <Text style={styles.forcedText}>
+            <Text style={[styles.forcedText, { color: colors.danger }]}>
               Hay platillos en preparación. Usa el cobro forzado solo si la cocina no responde o hubo una falla:
               quedará registrado con tu usuario para revisión del administrador.
             </Text>
@@ -375,7 +375,7 @@ function BillPayment({
           <Text style={[styles.section, { color: colors.textSecondary }]}>Pagos</Text>
           {rows.length < MAX_PAYMENTS && (
             <Pressable accessibilityRole="button" onPress={addRow} hitSlop={6}>
-              <Text style={styles.addPayment}>+ Dividir pago</Text>
+              <Text style={[styles.addPayment, { color: colors.accent }]}>+ Dividir pago</Text>
             </Pressable>
           )}
         </View>
@@ -395,7 +395,7 @@ function BillPayment({
                       styles.method,
                       active ? { backgroundColor: `${Brand.green}26`, borderColor: Brand.green } : { borderColor: colors.border },
                     ]}>
-                    <Text style={[styles.methodText, { color: active ? Brand.greenLight : colors.textSecondary }]}>
+                    <Text style={[styles.methodText, { color: active ? colors.success : colors.textSecondary }]}>
                       {method.label}
                     </Text>
                   </Pressable>
@@ -602,7 +602,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   forcedText: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 14,
     lineHeight: 20,
@@ -619,7 +618,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   addPayment: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 15,
   },

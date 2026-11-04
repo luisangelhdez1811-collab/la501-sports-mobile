@@ -1,9 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
-import { cancelOrder, trackOrder, type OrderStatus, type Tracking } from '@/api/account';
-import { errorMessage } from '@/api/client';
+import type { OrderStatus, Tracking } from '@/api/account';
 import { formatMoney } from '@/components/account/orders-list';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -11,11 +9,12 @@ import { FormCard } from '@/components/brand/form-card';
 import { FormMessage } from '@/components/brand/form-message';
 import { StatusBadge } from '@/components/brand/status-badge';
 import { BrandTitle } from '@/components/brand/typography';
+import { ProviderCard } from '@/components/legal/provider-card';
+import { InvoiceCard } from '@/components/order/invoice-card';
 import { Brand, BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCart } from '@/hooks/use-cart';
-
-const POLL_MS = 10000;
+import { FINAL_STATUSES, useOrderTracking } from '@/hooks/use-order-tracking';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 
 const STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'pending', label: 'Pendiente', emoji: '🧾' },
@@ -25,11 +24,6 @@ const STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'delivering', label: 'En camino', emoji: '🛵' },
   { status: 'delivered', label: 'Entregado', emoji: '✅' },
 ];
-
-// Nothing else will change once the order gets here.
-const FINAL: OrderStatus[] = ['delivered', 'cancelled'];
-// The restaurant has it: a card payment went through (or it's cash).
-const CONFIRMED: OrderStatus[] = ['paid', 'preparing', 'ready', 'delivering', 'delivered'];
 
 const CARD_NOT_CONFIRMED =
   'Tu pago con tarjeta no se ha confirmado, así que tu pedido todavía no se envía a cocina. ' +
@@ -48,44 +42,8 @@ function refundMessage(tracking: Tracking) {
 export default function OrderTrackingScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const { colors } = useBrandTheme();
-  const [tracking, setTracking] = useState<Tracking | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
-  const { paymentConfirmed } = useCart();
-  const status = tracking?.status;
-
-  // A card order keeps the cart until its payment is confirmed (then it can go).
-  useEffect(() => {
-    if (status && CONFIRMED.includes(status)) paymentConfirmed(token);
-  }, [status, token, paymentConfirmed]);
-
-  // Refreshes every few seconds until the order is delivered or cancelled; stops on leaving.
-  useEffect(() => {
-    let controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const load = () => {
-      controller = new AbortController();
-      trackOrder(token, controller.signal)
-        .then((data) => {
-          setTracking(data);
-          setError(null);
-          if (!FINAL.includes(data.status)) timer = setTimeout(load, POLL_MS);
-        })
-        .catch((err: unknown) => {
-          if (controller.signal.aborted) return;
-          setError(errorMessage(err));
-          timer = setTimeout(load, POLL_MS * 3);
-        });
-    };
-    load();
-
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [token, reloadKey]);
+  const policy = useStorePolicy();
+  const { tracking, error, cancelling, cancel: cancelOrder } = useOrderTracking(token);
 
   const cancel = () => {
     Alert.alert(
@@ -96,19 +54,7 @@ export default function OrderTrackingScreen() {
         {
           text: 'Sí, cancelar',
           style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              setTracking(await cancelOrder(token));
-              setError(null);
-            } catch (err) {
-              setError(errorMessage(err));
-            } finally {
-              setCancelling(false);
-              // The server's answer may be partial: read the order again.
-              setReloadKey((k) => k + 1);
-            }
-          },
+          onPress: cancelOrder,
         },
       ],
     );
@@ -164,7 +110,7 @@ export default function OrderTrackingScreen() {
                       style={[
                         styles.stepLabel,
                         { color: done ? colors.text : colors.textSecondary },
-                        index === currentIndex && { color: Brand.orange },
+                        index === currentIndex && { color: colors.accent },
                       ]}>
                       {step.label}
                     </Text>
@@ -178,9 +124,14 @@ export default function OrderTrackingScreen() {
             <BrandButton title="Cancelar pedido" variant="danger" onPress={cancel} loading={cancelling} />
           )}
 
-          {!FINAL.includes(tracking.status) && (
+          {!FINAL_STATUSES.includes(tracking.status) && (
             <Text style={[styles.hint, { color: colors.textSecondary }]}>Esta pantalla se actualiza sola.</Text>
           )}
+
+          {tracking.status === 'delivered' && !!tracking.folio && (
+            <InvoiceCard folio={tracking.folio} instructions={policy.invoice.instructions} email={policy.invoice.email} />
+          )}
+          <ProviderCard provider={policy.provider} />
         </FormCard>
       )}
     </BrandScreen>

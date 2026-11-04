@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FlatList, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import type { AlcoholPolicy } from '@/api/info';
 import { PromoCard } from '@/components/promo/promo-card';
 import { Brand } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
@@ -14,13 +15,14 @@ const PEEK = 28;
 type PromoCarouselProps = {
   promotions: Promotion[];
   onAdd?: (promo: Promotion) => void;
+  alcohol: AlcoholPolicy;
 };
 
 /**
  * Offers side by side, one per swipe: cards keep a readable size and the screen stays the
  * same height no matter how many promotions there are.
  */
-export function PromoCarousel({ promotions, onAdd }: PromoCarouselProps) {
+export function PromoCarousel({ promotions, onAdd, alcohol }: PromoCarouselProps) {
   const { colors } = useBrandTheme();
   const { width } = useWindowDimensions();
   const [index, setIndex] = useState(0);
@@ -48,7 +50,7 @@ export function PromoCarousel({ promotions, onAdd }: PromoCarouselProps) {
           setIndex(Math.min(Math.max(next, 0), promotions.length - 1));
         }}
         scrollEventThrottle={32}
-        renderItem={({ item }) => <PromoCard promo={item} onAdd={onAdd} style={{ width: cardWidth }} />}
+        renderItem={({ item }) => <PromoCard promo={item} onAdd={onAdd} alcohol={alcohol} style={{ width: cardWidth }} />}
       />
 
       {!single && (

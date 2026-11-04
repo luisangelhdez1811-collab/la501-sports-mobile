@@ -79,6 +79,10 @@ export type Promotion = Product & {
   availability: string | null;
   /** Redeemed with the waiter in the restaurant; can't be ordered for delivery. */
   storeOnly: boolean;
+  /** Last moment the offer is valid; null when the server doesn't say. */
+  endsAt: Date | null;
+  /** Full conditions, shown before adding the offer (LFPC art. 46 a 48). Empty when none. */
+  conditions: string;
 };
 
 export type NewsItem = {

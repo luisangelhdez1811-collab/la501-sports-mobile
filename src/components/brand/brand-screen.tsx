@@ -47,7 +47,7 @@ export function BrandScreen({
               <RefreshControl
                 refreshing={!!refreshing}
                 onRefresh={onRefresh}
-                tintColor={Brand.orange}
+                tintColor={colors.accent}
                 colors={[Brand.orange]}
                 progressBackgroundColor={colors.surface}
               />

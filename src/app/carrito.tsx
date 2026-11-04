@@ -13,13 +13,16 @@ import { FormMessage } from '@/components/brand/form-message';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { PageHero } from '@/components/brand/page-hero';
 import { SkewButton } from '@/components/brand/skew-button';
+import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { CartLine } from '@/components/order/cart-line';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
-import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { BrandFonts, Radius } from '@/constants/brand';
+import { isAlcoholic, isAlcoholicProduct, requiresAdult } from '@/domain/checkout-rules';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCart } from '@/hooks/use-cart';
 import { useIsOffline } from '@/hooks/use-connectivity';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Product } from '@/types/product';
 import { menuImage } from '@/utils/image-source';
 
@@ -57,7 +60,8 @@ function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
     const ids = idsKey ? idsKey.split(',').map(Number) : [];
     getRecommendations(ids, controller.signal)
       .then((data) => {
-        setItems(data.products.filter((p) => p.available).slice(0, 8));
+        // Never suggest drinks with alcohol: it would encourage drinking (LGS art. 308).
+        setItems(data.products.filter((p) => p.available && !isAlcoholicProduct(p)).slice(0, 8));
         setPersonalized(data.personalized);
       })
       .catch(() => setItems([]));
@@ -78,7 +82,7 @@ function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
             <Text style={[styles.recoName, { color: colors.text }]} numberOfLines={1}>
               {product.name}
             </Text>
-            <Text style={styles.recoPrice}>{formatMoney(product.price)}</Text>
+            <Text style={[styles.recoPrice, { color: colors.success }]}>{formatMoney(product.price)}</Text>
             <BrandButton title="Agregar" onPress={() => onPick(product)} style={styles.recoButton} />
           </View>
         ))}
@@ -92,6 +96,11 @@ export default function CartScreen() {
   const cart = useCart();
   const { status } = useAuth();
   const [customizing, setCustomizing] = useState<Product | null>(null);
+  const policy = useStorePolicy();
+  const withAlcohol = requiresAdult(cart.items);
+  // Licence hours or dry law: drinks with alcohol can't be sent now (M-23).
+  const alcoholClosed = withAlcohol && !policy.alcohol.salesOpen;
+  const removeAlcohol = () => cart.items.filter(isAlcoholic).forEach((item) => cart.remove(item.lineId));
   // Checkout needs each item's server id; warn here instead of failing after the form.
   const notOrderable = cart.items.filter((item) => item.product.id === null);
   // The cart works offline (it's saved on the device); paying needs a connection.
@@ -136,11 +145,20 @@ export default function CartScreen() {
                 accessibilityRole="link"
                 onPress={() => router.push('/login')}
                 style={styles.pointsNotice}>
-                <SymbolView name={{ ios: 'info.circle', android: 'info', web: 'info' }} size={18} tintColor="#FACC15" />
-                <Text style={styles.pointsText}>
+                <SymbolView name={{ ios: 'info.circle', android: 'info', web: 'info' }} size={18} tintColor={colors.warning} />
+                <Text style={[styles.pointsText, { color: colors.warning }]}>
                   <Text style={styles.pointsLink}>Inicia sesión</Text> para acumular puntos con esta compra.
                 </Text>
               </Pressable>
+            )}
+
+            {withAlcohol && <AlcoholNotice legend={policy.alcohol.legend} />}
+
+            {alcoholClosed && (
+              <View style={styles.closed}>
+                <FormMessage type="info">{policy.alcohol.closedMessage}</FormMessage>
+                <BrandButton title="Quitar bebidas con alcohol" variant="secondary" onPress={removeAlcohol} />
+              </View>
             )}
 
             {notOrderable.length > 0 && (
@@ -162,7 +180,7 @@ export default function CartScreen() {
                     : { ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' }
                 }
                 onPress={() => router.push('/checkout')}
-                disabled={notOrderable.length > 0 || offline}
+                disabled={notOrderable.length > 0 || offline || alcoholClosed}
                 style={styles.flex2}
               />
             </View>
@@ -175,6 +193,7 @@ export default function CartScreen() {
       <ProductDetailSheet
         product={customizing}
         onClose={() => setCustomizing(null)}
+        alcohol={policy.alcohol}
         onAdd={(product, excluded, notes, _quantity, selection) => cart.add(product, { excluded, notes, selection })}
       />
     </BrandScreen>
@@ -182,6 +201,9 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
+  closed: {
+    gap: 10,
+  },
   content: {
     padding: 0,
     paddingTop: 0,
@@ -250,7 +272,6 @@ const styles = StyleSheet.create({
   },
   pointsText: {
     flex: 1,
-    color: '#FACC15',
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 14,
   },
@@ -292,7 +313,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   recoPrice: {
-    color: Brand.greenLight,
     fontFamily: BrandFonts.labelBold,
     fontSize: 15,
   },

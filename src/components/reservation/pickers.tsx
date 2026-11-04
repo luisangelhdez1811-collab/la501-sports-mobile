@@ -53,7 +53,7 @@ function PickerField({
     <View style={styles.container}>
       <Text style={[styles.label, { color: colors.textSecondary }]}>
         {label}
-        <Text style={{ color: Brand.orange }}> *</Text>
+        <Text style={{ color: colors.accent }}> *</Text>
       </Text>
       <Pressable
         accessibilityRole="button"

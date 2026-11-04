@@ -57,12 +57,12 @@ export function CartLine({ item }: { item: CartItem }) {
           {price > 0 || !product.priceLabel ? `${formatMoney(price)} c/u` : `Promoción ${product.priceLabel}`}
         </Text>
         {!!summary && (
-          <Text style={[styles.detail, { color: Brand.orange }]} numberOfLines={3}>
+          <Text style={[styles.detail, { color: colors.accent }]} numberOfLines={3}>
             {summary}
           </Text>
         )}
         {item.excluded.length > 0 && (
-          <Text style={[styles.detail, { color: Brand.red }]} numberOfLines={2}>
+          <Text style={[styles.detail, { color: colors.danger }]} numberOfLines={2}>
             Sin {item.excluded.map((i) => i.name.toLowerCase()).join(', ')}
           </Text>
         )}

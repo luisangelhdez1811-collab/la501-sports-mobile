@@ -91,6 +91,9 @@ export type RegisterInput = {
   promoOptIn: boolean;
   /** The service is for adults only (it sells alcohol); never pre-checked. */
   adult: boolean;
+  /** Versions of the texts the person accepts (from /public/info); null until published. */
+  termsVersion: string | null;
+  privacyVersion: string | null;
 };
 
 export async function register(input: RegisterInput) {
@@ -107,6 +110,8 @@ export async function register(input: RegisterInput) {
       acepta_aviso_privacidad: true,
       acepta_promociones: input.promoOptIn,
       mayor_de_edad: input.adult,
+      ...(input.termsVersion ? { terms_version: input.termsVersion } : {}),
+      ...(input.privacyVersion ? { privacy_version: input.privacyVersion } : {}),
     },
   });
   // Some backends log the user in on registration; if a token comes back, keep it.

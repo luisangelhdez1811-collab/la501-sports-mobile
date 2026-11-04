@@ -1,12 +1,7 @@
 import { Redirect, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ApiError, errorMessage } from '@/api/client';
-import { DEFAULT_POLICY, getCheckoutPolicy, type CheckoutPolicy } from '@/api/info';
-import { checkout, type CheckoutResult, type PaymentMethod } from '@/api/orders';
 import { formatMoney } from '@/components/account/orders-list';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -17,22 +12,20 @@ import { OfflineBanner } from '@/components/brand/offline-banner';
 import { PageHero } from '@/components/brand/page-hero';
 import { TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
+import { AlcoholNotice } from '@/components/legal/alcohol-notice';
+import { ProviderCard } from '@/components/legal/provider-card';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { hasNotes, missingConsent, requiresAdult } from '@/domain/checkout-rules';
-import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCart } from '@/hooks/use-cart';
+import { useCheckout } from '@/hooks/use-checkout';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { isEmail, isPhone, normalizePhone } from '@/utils/validation';
-
-type Errors = Partial<Record<'name' | 'phone' | 'email' | 'address' | 'payment' | 'delivery', string>>;
+import { normalizePhone } from '@/utils/validation';
 
 function SectionTitle({ icon, children }: { icon: SymbolViewProps['name']; children: string }) {
   const { colors } = useBrandTheme();
   return (
     <View style={styles.sectionTitle}>
       <View style={[styles.sectionIcon, { borderColor: `${Brand.orange}55`, backgroundColor: `${Brand.orange}14` }]}>
-        <SymbolView name={icon} size={18} tintColor={Brand.orange} />
+        <SymbolView name={icon} size={18} tintColor={colors.accent} />
       </View>
       <Text style={[styles.sectionText, { color: colors.text }]}>{children}</Text>
     </View>
@@ -82,124 +75,22 @@ function PaymentOption({
 
 export default function CheckoutScreen() {
   const { colors } = useBrandTheme();
-  const cart = useCart();
-  const { user } = useAuth();
   const offline = useIsOffline();
-  const [name, setName] = useState(user?.name ?? '');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [address, setAddress] = useState('');
-  const [payment, setPayment] = useState<PaymentMethod | null>(null);
-  const [deliveryTerms, setDeliveryTerms] = useState(false);
-  const [adult, setAdult] = useState(false);
-  const [healthConsent, setHealthConsent] = useState(false);
-  // The server found alcohol the app didn't (e.g. in a promotion): ask for 18+ anyway.
-  const [serverWantsAdult, setServerWantsAdult] = useState(false);
-  const [policy, setPolicy] = useState<CheckoutPolicy>(DEFAULT_POLICY);
-  const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  // How delivery is charged and whether card payments are on come from the server.
-  useEffect(() => {
-    const controller = new AbortController();
-    getCheckoutPolicy(controller.signal)
-      .then(setPolicy)
-      .catch(() => {}); // offline or older server: the defaults stay
-    return () => controller.abort();
-  }, []);
+  const checkout = useCheckout();
+  const { form, consents, errors, policy } = checkout;
 
   // Nothing to pay for (e.g. back-navigation after the order was placed).
-  if (cart.items.length === 0 && !submitting) return <Redirect href="/carrito" />;
-
-  // Card payments paused after it was picked: it no longer counts as chosen.
-  const method = payment === 'tarjeta' && !policy.cardPayments ? null : payment;
-  const adultRequired = requiresAdult(cart.items) || serverWantsAdult;
-  const notesWritten = hasNotes(cart.items);
-
-  const validate = (): Errors => {
-    const next: Errors = {};
-    if (name.trim().length < 3) next.name = 'Escribe tu nombre completo.';
-    if (!isPhone(phone)) next.phone = 'El teléfono debe tener 10 dígitos.';
-    if (email.trim() && !isEmail(email)) next.email = 'Correo electrónico no válido.';
-    if (address.trim().length < 10) next.address = 'Escribe calle, número, colonia y una referencia.';
-    if (!method) next.payment = 'Elige cómo vas a pagar.';
-    if (!deliveryTerms) next.delivery = 'Confirma que leíste cómo se cobra el envío.';
-    return next;
-  };
-
-  const send = (clientRef: string) =>
-    checkout({
-      items: cart.items,
-      name,
-      phone,
-      address,
-      email,
-      paymentMethod: method!,
-      clientRef,
-      deliveryTermsAccepted: deliveryTerms,
-      adultConfirmed: adultRequired && adult,
-      healthDataConsent: notesWritten && healthConsent,
-    });
-
-  const finish = async (result: CheckoutResult) => {
-    const track = () => router.replace({ pathname: '/pedido/[token]', params: { token: result.trackingToken } });
-    if (result.paymentMethod !== 'tarjeta') {
-      // Cash: the order is placed as soon as the server answers.
-      cart.clear();
-      return track();
-    }
-    // Card: the cart stays until tracking sees the payment confirmed, so a rejected or
-    // abandoned payment can be retried with the same reference (no second order).
-    cart.holdForPayment(result.trackingToken);
-    if (result.checkoutUrl && !result.duplicate) {
-      // The bank's page opens in the system browser (Chrome Custom Tabs / Safari), never a
-      // WebView: the customer sees the real address and the app can't read card data.
-      await WebBrowser.openBrowserAsync(result.checkoutUrl, { dismissButtonStyle: 'close', showTitle: true });
-    }
-    track();
-  };
+  if (checkout.items.length === 0 && !checkout.submitting) return <Redirect href="/carrito" />;
 
   const submit = async () => {
-    // Checkout needs the server id of every item.
-    if (cart.items.some((item) => item.product.id === null)) {
-      return setFormError('Algunos productos aún no se pueden pedir desde la app. Intenta más tarde o pide por teléfono.');
-    }
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length > 0) return setFormError(next.delivery && Object.keys(next).length === 1 ? next.delivery : 'Revisa los campos marcados.');
-    const missing = missingConsent(
-      cart.items,
-      { deliveryTermsAccepted: deliveryTerms, adultConfirmed: adult, healthDataConsent: healthConsent },
-      adultRequired,
-    );
-    if (missing) return setFormError(missing);
-
-    setFormError(null);
-    setSubmitting(true);
-    try {
-      let result: CheckoutResult;
-      try {
-        result = await send(cart.clientRef());
-      } catch (err) {
-        // The reference belongs to another account (very unlikely): a new one, once.
-        if (!(err instanceof ApiError && err.code === 'duplicate_reference')) throw err;
-        result = await send(cart.renewClientRef());
-      }
-      await finish(result);
-    } catch (err) {
-      setSubmitting(false);
-      if (err instanceof ApiError && err.code === 'confirmation_required' && /18/.test(err.message)) {
-        setServerWantsAdult(true);
-        return setFormError(err.message);
-      }
-      if (err instanceof ApiError && err.code === 'mercadopago_unavailable') {
-        return setFormError('Mercado Pago no respondió. Intenta de nuevo en un momento o paga en efectivo.');
-      }
-      if (err instanceof ApiError && err.code === 'item_unavailable') {
-        return Alert.alert('Revisa tu carrito', err.message, [{ text: 'Ir al carrito', onPress: () => router.back() }]);
-      }
-      setFormError(errorMessage(err));
+    const outcome = await checkout.submit();
+    if (outcome.kind === 'item_unavailable') {
+      Alert.alert('Revisa tu carrito', outcome.message, [{ text: 'Ir al carrito', onPress: () => router.back() }]);
+    } else if (outcome.kind === 'alcohol_closed') {
+      Alert.alert('Venta de alcohol cerrada', outcome.message, [
+        { text: 'Volver', style: 'cancel' },
+        { text: 'Quitar bebidas con alcohol', onPress: checkout.removeAlcohol },
+      ]);
     }
   };
 
@@ -216,15 +107,15 @@ export default function CheckoutScreen() {
         <OfflineBanner />
 
         <FormCard>
-          {!!formError && <FormMessage type="error">{formError}</FormMessage>}
+          {!!checkout.formError && <FormMessage type="error">{checkout.formError}</FormMessage>}
 
           <SectionTitle icon={{ ios: 'person', android: 'person', web: 'person' }}>Datos de contacto</SectionTitle>
           <TextField
             label="Nombre completo"
             required
             placeholder="Juan Pérez"
-            value={name}
-            onChangeText={setName}
+            value={form.name}
+            onChangeText={form.setName}
             autoComplete="name"
             textContentType="name"
             error={errors.name}
@@ -233,8 +124,8 @@ export default function CheckoutScreen() {
             label="Teléfono"
             required
             placeholder="10 dígitos"
-            value={phone}
-            onChangeText={(v) => setPhone(normalizePhone(v))}
+            value={form.phone}
+            onChangeText={(v) => form.setPhone(normalizePhone(v))}
             keyboardType="phone-pad"
             autoComplete="tel"
             textContentType="telephoneNumber"
@@ -244,8 +135,8 @@ export default function CheckoutScreen() {
           <TextField
             label="Correo (opcional)"
             placeholder="tucorreo@ejemplo.com"
-            value={email}
-            onChangeText={setEmail}
+            value={form.email}
+            onChangeText={form.setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -261,8 +152,8 @@ export default function CheckoutScreen() {
             label="Calle, número, colonia y referencia"
             required
             placeholder="Ej: Av. Principal 123, Col. Centro. Casa blanca con portón negro."
-            value={address}
-            onChangeText={setAddress}
+            value={form.address}
+            onChangeText={form.setAddress}
             multiline
             maxLength={300}
             autoComplete="street-address"
@@ -277,8 +168,8 @@ export default function CheckoutScreen() {
               emoji="💵"
               title="Efectivo"
               subtitle="Al recibir"
-              selected={method === 'efectivo'}
-              onPress={() => setPayment('efectivo')}
+              selected={checkout.method === 'efectivo'}
+              onPress={() => checkout.choosePayment('efectivo')}
             />
             <PaymentOption
               emoji="💳"
@@ -286,48 +177,47 @@ export default function CheckoutScreen() {
               subtitle={
                 policy.cardPayments ? 'Débito o crédito · pago seguro en Mercado Pago' : 'No disponible por ahora · paga en efectivo'
               }
-              selected={method === 'tarjeta'}
+              selected={checkout.method === 'tarjeta'}
               disabled={!policy.cardPayments}
-              onPress={() => setPayment('tarjeta')}
+              onPress={() => checkout.choosePayment('tarjeta')}
             />
           </View>
-          {!!errors.payment && <Text style={styles.error}>{errors.payment}</Text>}
+          {!!errors.payment && <Text style={[styles.error, { color: colors.danger }]}>{errors.payment}</Text>}
 
           <View style={[styles.totalBox, { backgroundColor: colors.background }]}>
             <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total de tus productos</Text>
             <Text style={[styles.total, { color: colors.text }]}>
               <Text style={{ color: colors.accent }}>$</Text>
-              {formatMoney(cart.total).slice(1)}
+              {formatMoney(checkout.total).slice(1)}
             </Text>
             <Text style={[styles.note, { color: colors.text }]}>{policy.feeNote}</Text>
           </View>
 
+          {checkout.withAlcohol && <AlcoholNotice legend={policy.alcohol.legend} />}
+
           <View style={styles.consents}>
             <Checkbox
-              checked={deliveryTerms}
-              onChange={(v) => {
-                setDeliveryTerms(v);
-                if (v) setErrors((e) => ({ ...e, delivery: undefined }));
-              }}
+              checked={consents.deliveryTerms}
+              onChange={consents.setDeliveryTerms}
               accessibilityLabel="Entiendo que el envío no está incluido en este total y que lo cobra el repartidor al entregar">
               Entiendo que el envío no está incluido en este total y que lo cobra el repartidor al entregar.
             </Checkbox>
-            {!!errors.delivery && <Text style={styles.error}>{errors.delivery}</Text>}
+            {!!errors.delivery && <Text style={[styles.error, { color: colors.danger }]}>{errors.delivery}</Text>}
 
-            {adultRequired && (
+            {checkout.adultRequired && (
               <Checkbox
-                checked={adult}
-                onChange={setAdult}
+                checked={consents.adult}
+                onChange={consents.setAdult}
                 accessibilityLabel="Confirmo que soy mayor de 18 años y que mostraré una identificación oficial al recibir">
                 Mi pedido lleva bebidas con alcohol. Confirmo que soy mayor de 18 años y que mostraré una identificación
                 oficial al recibirlo.
               </Checkbox>
             )}
 
-            {notesWritten && (
+            {checkout.notesWritten && (
               <Checkbox
-                checked={healthConsent}
-                onChange={setHealthConsent}
+                checked={consents.healthConsent}
+                onChange={consents.setHealthConsent}
                 accessibilityLabel="Autorizo que mis notas se usen solo para preparar mi pedido">
                 Si mis notas incluyen alergias u otra información de salud, autorizo que se usen solo para preparar mi
                 pedido.
@@ -340,9 +230,12 @@ export default function CheckoutScreen() {
             variant="action"
             icon={{ ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' }}
             onPress={submit}
-            loading={submitting}
-            disabled={offline || submitting}
+            loading={checkout.submitting}
+            disabled={offline || checkout.submitting}
           />
+
+          {/* Before paying: who sells and how to complain (LFPC art. 76 Bis III). */}
+          <ProviderCard provider={policy.provider} />
         </FormCard>
       </View>
     </BrandScreen>
@@ -432,7 +325,6 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.orangeFill,
   },
   error: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 13,
   },

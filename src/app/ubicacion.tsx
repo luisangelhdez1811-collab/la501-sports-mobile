@@ -120,7 +120,7 @@ export default function LocationScreen() {
             </View>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Dirección</Text>
           </View>
-          <Text style={styles.street} selectable>
+          <Text style={[styles.street, { color: colors.accent }]} selectable>
             {street}
           </Text>
           {rest.map((line) => (
@@ -220,7 +220,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   street: {
-    color: Brand.orange,
     fontFamily: BrandFonts.display,
     fontSize: 32,
     letterSpacing: 1,

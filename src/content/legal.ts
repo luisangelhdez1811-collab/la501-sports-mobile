@@ -16,6 +16,11 @@ export type LegalDocument = {
   accent: string;
   description: string;
   updated: string;
+  /**
+   * Must match the version the server publishes (/public/info → legal.terms_version and
+   * legal.privacy_version) the day the web publishes the same text (M-12, M-22).
+   */
+  version: string;
   blocks: LegalBlock[];
 };
 
@@ -27,6 +32,7 @@ export const PRIVACY_NOTICE: LegalDocument = {
   accent: 'privacidad',
   description: 'Conoce cómo protegemos y tratamos tus datos personales de manera segura.',
   updated: 'Noviembre de 2026',
+  version: '2026-11',
   blocks: [
     { type: 'h2', text: 'Introducción' },
     {
@@ -223,7 +229,7 @@ export const PRIVACY_NOTICE: LegalDocument = {
         ['Acceso', 'Consulte sus datos y descargue una copia completa como archivo.'],
         ['Rectificación', 'Corrija su nombre, correo, teléfono o foto de perfil.'],
         ['Cancelación', 'Elimine su cuenta y sus datos personales.'],
-        ['Oposición', 'Active o desactive las promociones por correo o SMS y las recomendaciones según sus pedidos.'],
+        ['Oposición', 'Active o desactive las promociones por correo y las recomendaciones según sus pedidos.'],
       ],
     },
     { type: 'h3', text: 'Por correo' },
@@ -293,6 +299,7 @@ export const TERMS: LegalDocument = {
   accent: 'condiciones',
   description: 'Reglas de uso de la app, pedidos, reservaciones y servicios digitales.',
   updated: 'Noviembre de 2026',
+  version: '2026-11',
   blocks: [
     { type: 'h2', text: '1. Identidad del proveedor' },
     {
@@ -410,7 +417,11 @@ export const TERMS: LegalDocument = {
     { type: 'h2', text: '13. Promociones y puntos' },
     {
       type: 'p',
-      text: 'Las promociones aplican solo durante su vigencia y hasta agotar existencias, no son acumulables entre sí ni canjeables por efectivo. Algunas promociones solo son válidas en el restaurante.',
+      text: 'Las promociones aplican solo durante su vigencia y hasta agotar existencias, no son acumulables entre sí ni canjeables por efectivo. Algunas promociones solo son válidas en el restaurante. La vigencia y las condiciones de cada promoción se muestran antes de agregarla a su pedido.',
+    },
+    {
+      type: 'p',
+      text: 'Las cuentas registradas acumulan puntos con sus pedidos. Por ahora los puntos no se pueden canjear y no tienen valor en dinero; se pierden al eliminar la cuenta. Si se habilita el canje, sus reglas se publicarán antes en el sitio web y en la app. Ningún logro ni punto adicional se otorga por pedir bebidas con alcohol.',
     },
 
     { type: 'h2', text: '14. Alergias y preferencias alimentarias' },

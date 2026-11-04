@@ -34,7 +34,7 @@ export function BrandButton({
   const { colors } = useBrandTheme();
   const inactive = disabled || loading;
   const filled = variant === 'primary' || variant === 'action';
-  const textColor = filled ? Brand.white : variant === 'danger' ? Brand.red : colors.text;
+  const textColor = filled ? Brand.white : variant === 'danger' ? colors.danger : colors.text;
 
   return (
     <Pressable

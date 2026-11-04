@@ -52,7 +52,7 @@ export function CategoryGridScreen({ hero, onOpen, bottomInset = 0, overlay }: C
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
             colors={[Brand.orange]}
             progressBackgroundColor={colors.surface}
           />

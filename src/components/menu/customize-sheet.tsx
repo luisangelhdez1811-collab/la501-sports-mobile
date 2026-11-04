@@ -273,11 +273,11 @@ export function CustomizeSheet({
                 <ImagePlaceholder style={styles.thumb} />
               )}
               <View style={styles.infoText}>
-                {!!product.presentation && <Text style={styles.presentation}>{product.presentation}</Text>}
+                {!!product.presentation && <Text style={[styles.presentation, { color: colors.accent }]}>{product.presentation}</Text>}
                 <Text style={[styles.description, { color: colors.textSecondary }]}>
                   {product.description || 'Personaliza tu platillo antes de agregarlo.'}
                 </Text>
-                {!product.available && <Text style={styles.soldOut}>Agotado por ahora</Text>}
+                {!product.available && <Text style={[styles.soldOut, { color: colors.danger }]}>Agotado por ahora</Text>}
               </View>
             </View>
 
@@ -302,7 +302,7 @@ export function CustomizeSheet({
                             : { borderColor: colors.border, backgroundColor: colors.background },
                         ]}>
                         <Text style={[styles.tileName, { color: colors.text }]}>{variant.name}</Text>
-                        <Text style={styles.variantPrice}>{formatPrice(variant.price)}</Text>
+                        <Text style={[styles.variantPrice, { color: colors.success }]}>{formatPrice(variant.price)}</Text>
                       </Pressable>
                     );
                   })}
@@ -316,7 +316,7 @@ export function CustomizeSheet({
                 <View key={group.id} style={styles.section}>
                   <View style={styles.groupHead}>
                     <Text style={[styles.sectionTitle, styles.groupTitle, { color: colors.text }]}>{group.label}</Text>
-                    <Text style={[styles.rule, { color: short ? Brand.red : colors.textSecondary }]}>{groupRule(group)}</Text>
+                    <Text style={[styles.rule, { color: short ? colors.danger : colors.textSecondary }]}>{groupRule(group)}</Text>
                   </View>
                   <View style={styles.grid}>
                     {group.options.map((option) => (
@@ -370,7 +370,7 @@ export function CustomizeSheet({
               { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: insets.bottom + 14 },
             ]}>
             {missing.length > 0 ? (
-              <Text style={[styles.notice, { color: Brand.red }]} accessibilityLiveRegion="polite">
+              <Text style={[styles.notice, { color: colors.danger }]} accessibilityLiveRegion="polite">
                 {missing[0]}
               </Text>
             ) : (
@@ -479,7 +479,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   presentation: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 13,
   },
@@ -489,7 +488,6 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
   soldOut: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 13,
   },
@@ -548,7 +546,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   variantPrice: {
-    color: Brand.green,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 14,
   },

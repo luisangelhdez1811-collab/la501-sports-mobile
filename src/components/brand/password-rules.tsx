@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Brand, BrandFonts } from '@/constants/brand';
+import { BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { PASSWORD_RULES } from '@/utils/validation';
 
@@ -22,9 +22,9 @@ export function PasswordRules({ value }: { value: string }) {
                   : { ios: 'circle', android: 'radio_button_unchecked', web: 'radio_button_unchecked' }
               }
               size={16}
-              tintColor={ok ? Brand.greenLight : colors.textSecondary}
+              tintColor={ok ? colors.success : colors.textSecondary}
             />
-            <Text style={[styles.text, { color: ok ? Brand.greenLight : colors.textSecondary }]}>
+            <Text style={[styles.text, { color: ok ? colors.success : colors.textSecondary }]}>
               {rule.label}
             </Text>
           </View>

@@ -215,7 +215,7 @@ function MessageCard({ message, onChanged }: { message: AdminMessage; onChanged:
             disabled={busy}
             onPress={markAttended}
             style={({ pressed }) => [styles.action, { borderColor: `${Brand.green}66`, backgroundColor: pressed ? `${Brand.green}33` : `${Brand.green}14` }]}>
-            <Text style={[styles.actionText, { color: Brand.greenLight }]}>{busy ? 'Guardando…' : 'Marcar atendido'}</Text>
+            <Text style={[styles.actionText, { color: colors.success }]}>{busy ? 'Guardando…' : 'Marcar atendido'}</Text>
           </Pressable>
         )}
       </View>

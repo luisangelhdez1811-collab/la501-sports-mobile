@@ -1,4 +1,5 @@
 import { sectionFor } from '@/domain/menu-layout';
+import { isPromotionActive } from '@/domain/promotions';
 import type {
   Category,
   Ingredient,
@@ -292,26 +293,24 @@ export async function getRecommendations(cartIds: number[], signal?: AbortSignal
   return { personalized: body.strategy === 'user_history', products: toProducts(body.products ?? body) };
 }
 
-const shortDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
-
-// Current API shape: { title, description, image, active, end_date }. The optional
-// fields (badge, price label…) are read if the backend adds them later.
+// Current API shape: { title, description, image, active, end_date }; the contract adds
+// ends_at (ISO date), conditions and alcoholic (B-27). The other optional fields (badge,
+// price label…) are read if the backend adds them.
 function toPromotion(raw: unknown, index: number): Promotion | null {
   const base = toItem(raw, index, 'promotion');
   const obj = asObject(raw);
   if (!base || !obj) return null;
   const priceLabel = asString(pick(obj, 'price_label', 'price_text', 'promo_price'));
-  const endDate = new Date(asString(obj.end_date));
-  const availability =
-    asString(pick(obj, 'availability', 'available_days')) ||
-    (Number.isNaN(endDate.getTime()) ? '' : `Hasta el ${shortDate.format(endDate)}`);
+  const endsAt = new Date(asString(pick(obj, 'ends_at', 'end_date')));
   return {
     ...base,
     badge: asString(pick(obj, 'badge', 'tag')) || null,
     // Never invent a price: without one, the card just shows the description.
     priceLabel: priceLabel || (base.price > 0 ? `$${base.price.toFixed(2)}` : ''),
-    availability: availability || null,
+    availability: asString(pick(obj, 'availability', 'available_days')) || null,
     storeOnly: Boolean(pick(obj, 'store_only', 'in_store_only')),
+    endsAt: Number.isNaN(endsAt.getTime()) ? null : endsAt,
+    conditions: asString(pick(obj, 'conditions', 'condiciones')).slice(0, 2000),
   };
 }
 
@@ -319,7 +318,7 @@ export async function getPromotions(signal?: AbortSignal): Promise<Promotion[]> 
   const data = await request<unknown>('/public/promotions', { signal });
   return asArray(data)
     .map(toPromotion)
-    .filter((p): p is Promotion => p !== null && p.available);
+    .filter((p): p is Promotion => p !== null && p.available && isPromotionActive(p));
 }
 
 export async function getNews(signal?: AbortSignal): Promise<NewsItem[]> {

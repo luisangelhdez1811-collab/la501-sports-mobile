@@ -27,6 +27,7 @@ import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCart } from '@/hooks/use-cart';
 import { useMenu } from '@/hooks/use-menu';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Category, Product } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
 import { groupBySubcategory } from '@/utils/subcategories';
@@ -51,6 +52,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
   const { categories, loading, refreshing, error, stale, reload, refresh } = useMenu();
   const cardWidth = gridCardWidth(width);
   const [selected, setSelected] = useState<Product | null>(null);
+  const policy = useStorePolicy();
 
   const found = categories.find((c) => c.name === nombre);
   const category = found && {
@@ -112,7 +114,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
               <SymbolView
                 name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
                 size={16}
-                tintColor={Brand.orange}
+                tintColor={colors.accent}
               />
               <Text style={[styles.backText, { color: colors.text }]}>{sub ? nombre : 'Categorías'}</Text>
             </Pressable>
@@ -130,7 +132,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
                 <Text style={styles.bannerTitle} accessibilityRole="header" numberOfLines={2}>
                   {title}
                 </Text>
-                {!!category && <Text style={styles.bannerCount}>{countLabel}</Text>}
+                {!!category && <Text style={[styles.bannerCount, { color: colors.accent }]}>{countLabel}</Text>}
               </View>
             </View>
 
@@ -171,7 +173,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
             colors={[Brand.orange]}
             progressBackgroundColor={colors.surface}
           />
@@ -184,6 +186,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
       <ProductDetailSheet
         product={selected}
         onClose={() => setSelected(null)}
+        alcohol={policy.alcohol}
         onAdd={(product, excluded, notes, _quantity, selection) => cart.add(product, { excluded, notes, selection })}
       />
     </View>
@@ -260,7 +263,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   bannerCount: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 14,
     letterSpacing: 2,

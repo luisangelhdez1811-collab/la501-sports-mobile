@@ -56,7 +56,15 @@ describe('Acceso (GET /profile)', () => {
     expect(llamada(0).url).toMatch(/\/app\/profile$/);
     expect(datos.phone).toBe('5512345678');
     expect(datos.promoSubscribed).toBe(true);
-    expect(datos.privacy).toEqual({ promoEmail: true, promoSms: false, personalizedRecommendations: false });
+    // No SMS preference: the restaurant doesn't send promotions by SMS (M-24).
+    expect(datos.privacy).toEqual({ promoEmail: true, personalizedRecommendations: false });
+    expect(datos.legalUpdateRequired).toBe(false);
+  });
+
+  it('avisa cuando cambió el Aviso o los Términos', async () => {
+    fetchMock.mockResolvedValueOnce(respuesta(200, { ...perfil, data: { ...perfil.data, legal_update_required: true } }));
+
+    expect((await cuenta().getAccount()).legalUpdateRequired).toBe(true);
   });
 
   it('con el servidor anterior usa /account y lee subscribed_to_promos', async () => {
@@ -93,10 +101,19 @@ describe('Oposición (PUT /profile/privacy)', () => {
       respuesta(200, { success: true, data: { promos_correo: false, promos_sms: true, recomendaciones_personalizadas: true } }),
     );
 
-    const guardado = await cuenta().updatePrivacy({ promoSms: true });
+    const guardado = await cuenta().updatePrivacy({ personalizedRecommendations: true });
 
-    expect(llamada(0).cuerpo).toEqual({ promos_sms: true });
-    expect(guardado).toEqual({ promoEmail: false, promoSms: true, personalizedRecommendations: true });
+    expect(llamada(0).cuerpo).toEqual({ recomendaciones_personalizadas: true });
+    expect(guardado).toEqual({ promoEmail: false, personalizedRecommendations: true });
+  });
+
+  it('registra la aceptación de las versiones vigentes', async () => {
+    fetchMock.mockResolvedValueOnce(respuesta(200, { success: true }));
+
+    await cuenta().acceptLegal({ termsVersion: '2026-11', privacyVersion: '2026-11' });
+
+    expect(llamada(0).url).toMatch(/\/app\/account\/accept-legal$/);
+    expect(llamada(0).cuerpo).toEqual({ terms_version: '2026-11', privacy_version: '2026-11' });
   });
 
   it('falla si el servidor no confirma las preferencias', async () => {

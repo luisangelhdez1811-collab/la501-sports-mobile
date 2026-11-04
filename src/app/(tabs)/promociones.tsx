@@ -9,22 +9,27 @@ import { DividerLabel } from '@/components/brand/typography';
 import { NewsletterCard } from '@/components/promo/newsletter-card';
 import { PromoCarousel } from '@/components/promo/promo-carousel';
 import { Brand, BrandFonts } from '@/constants/brand';
+import { isPromotionActive } from '@/domain/promotions';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useCart } from '@/hooks/use-cart';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Promotion } from '@/types/product';
 
 export default function PromotionsScreen() {
   const { colors } = useBrandTheme();
   const cart = useCart();
+  const policy = useStorePolicy();
   const {
-    data: promotions,
+    data: loaded,
     error,
     refreshing,
     stale,
     reload,
     refresh,
   } = useCachedResource<Promotion[]>('promotions', getPromotions);
+  // A copy loaded earlier may hold offers that ended since: never show or sell those.
+  const promotions = loaded?.filter((promo) => isPromotionActive(promo)) ?? null;
 
   return (
     <BrandScreen refreshing={refreshing} onRefresh={refresh} contentStyle={styles.content}>
@@ -34,7 +39,7 @@ export default function PromotionsScreen() {
         tag="La 501 Sports Restaurant"
         lead="Promociones"
         accent="especiales"
-        description="Aprovecha nuestras ofertas exclusivas para ti y tu familia. ¡No dejes pasar estas oportunidades!"
+        description="Ofertas vigentes del restaurante. Revisa la vigencia y las condiciones de cada una antes de pedir."
       />
 
       <View style={styles.body}>
@@ -57,7 +62,7 @@ export default function PromotionsScreen() {
           </Text>
         )}
 
-        {!!promotions?.length && <PromoCarousel promotions={promotions} onAdd={(promo) => cart.add(promo)} />}
+        {!!promotions?.length && <PromoCarousel promotions={promotions} alcohol={policy.alcohol} onAdd={(promo) => cart.add(promo)} />}
 
         <NewsletterCard />
       </View>

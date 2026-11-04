@@ -47,7 +47,7 @@ export function StaffProfile() {
           {user.email}
         </Text>
         <View style={styles.role}>
-          <Text style={styles.roleText}>{ROLE_LABEL[user.role]}</Text>
+          <Text style={[styles.roleText, { color: colors.accent }]}>{ROLE_LABEL[user.role]}</Text>
         </View>
       </View>
 
@@ -106,7 +106,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   roleText: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 13,
     letterSpacing: 1.5,

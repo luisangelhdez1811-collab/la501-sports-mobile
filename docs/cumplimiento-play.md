@@ -6,7 +6,7 @@ declares en Play Console debe coincidir con lo que hace la app y con el Aviso de
 
 Última revisión: 4 de noviembre de 2026.
 
-## Estado de los cambios de la app (M-01 a M-17)
+## Estado de los cambios de la app (M-01 a M-26)
 
 «Hecho en la app» significa programado y con pruebas automáticas. Ninguno cuenta como
 terminado hasta probarlo en un teléfono contra el servidor desplegado con su parte del back.
@@ -26,10 +26,28 @@ terminado hasta probarlo en un teléfono contra el servidor desplegado con su pa
 | M-11 | Registro: mayoría de edad y sin pregunta secreta | Hecho | **B-15: hoy el servidor exige la pregunta secreta; salen el mismo día** |
 | M-12 | Textos legales iguales a la web | Provisional | B-18: copiar el texto final y la misma fecha |
 | M-13 | Dirección real, aviso en Reservar, sin superlativos | Hecho | B-21, B-22 (la web aún usa las frases viejas y la dirección vieja) |
-| M-14 | Contraste AA | Rellenos y avisos hechos | Pendiente: textos naranjas sobre fondo claro que usan `Brand.orange` |
+| M-14 | Contraste AA | Hecho: textos con `colors.accent/success/warning/danger`; las etiquetas de estado usan texto normal y el color solo en el borde | — |
 | M-15 | `tsc` sin errores por CSS | Hecho | — |
 | M-16 | Presentaciones y opciones del menú nuevo | Hecho (rama `feature/menu-nuevo`) | Ya en producción |
 | M-17 | Este documento y Play Console | Este documento | URL `/eliminar-cuenta` (B-17) |
+| M-18 | Leyenda de alcohol y «Venta solo a mayores de 18 años» | Hecho: ficha, promociones, carrito y checkout; sin recomendar alcohol en el carrito; sin juntar bebidas y deporte en Quiénes somos | B-25 `alcohol.legend`, `alcoholic` en promociones (hoy: leyenda de respaldo) |
+| M-19 | Puntos y logros | Hecho: «Por ahora los puntos no se pueden canjear», enlace a las reglas, aviso de que se pierden al eliminar la cuenta; la app no tiene nada de `fan_bar` | B-26 `loyalty` (quitar el logro `fan_bar` es del back) |
+| M-20 | Vigencia y condiciones de promociones | Hecho: «Válida hasta…», condiciones antes de «Aprovechar», vencidas ocultas | B-27 `ends_at`, `conditions` |
+| M-21 | Datos del proveedor antes de pagar | Hecho: en el checkout y en el seguimiento, con respaldo igual a los Términos | B-29 `provider` (falta el RFC del dueño) |
+| M-22 | Aceptar versiones nuevas del Aviso y los Términos | Hecho: pantalla que no se puede saltar, reintento del checkout con `409`, versiones en el registro, `version` en `legal.ts` | B-32 `legal_update_required`, `/account/accept-legal`, `legal.*_version` |
+| M-23 | Venta de alcohol cerrada | Hecho: «Agregar» desactivado, aviso y «Quitar bebidas con alcohol» en carrito y checkout, `422 alcohol_sales_closed` | B-28 `alcohol.sales_open` (hoy: abierta) |
+| M-24 | Quitar promociones por SMS | Hecho: sin interruptor, sin `promoSms`, sin SMS en el Aviso | B-33 (que el servidor deje de exigir `promos_sms`) |
+| M-25 | Cómo pedir factura | Hecho: «¿Necesitas factura?» en pedidos entregados, folio seleccionable y correo prellenado | B-34 (texto y correo; hoy: respaldo) |
+| M-26 | Datos guardados en el teléfono | Hecho: al cerrar sesión o eliminar la cuenta se borran perfil, carrito, folio, copias de «Mis datos» y caché de imágenes; sesión en SecureStore; `allowBackup: false`; sin `console` en producción | — |
+
+### Campos que la app ya lee y no están en el contrato
+
+Hay que agregarlos al documento del back y al de la app (o cambiar el nombre aquí):
+
+- `payments.card_enabled` en `/public/info`: apaga la tarjeta sin publicar otra versión.
+- `invoice.instructions` e `invoice.email` en `/public/info`: cómo pedir factura (M-25). El
+  contrato solo dice «el texto y el correo que defina el back».
+
 
 ## Cómo se genera el `.aab` (disparador de GitHub)
 
@@ -164,7 +182,7 @@ de estos, revisa `blockedPermissions` antes de subir.
 ## Lista final antes de subir a Play Console
 
 - [ ] El back terminó sus P0 y desplegó el contrato de la API.
-- [ ] M-01 a M-16 terminados y probados en un teléfono real contra ese servidor.
+- [ ] M-01 a M-26 terminados y probados en un teléfono real contra ese servidor.
 - [ ] `npx jest`, `npx tsc --noEmit` y `npx expo lint` limpios.
 - [ ] El `.aab` apunta a API 36 y no pide permisos de cámara, micrófono, almacenamiento ni ubicación.
 - [ ] Cobro real de $1 aprobado y devuelto (o la tarjeta apagada).

@@ -34,7 +34,7 @@ export function SelectField({
     <View style={styles.container}>
       <Text style={[styles.label, { color: colors.textSecondary }]}>
         {label}
-        {required && <Text style={{ color: Brand.orange }}> *</Text>}
+        {required && <Text style={{ color: colors.accent }}> *</Text>}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -62,7 +62,7 @@ export function SelectField({
           tintColor={colors.textSecondary}
         />
       </Pressable>
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable
@@ -104,7 +104,7 @@ export function SelectField({
                           web: 'check',
                         }}
                         size={18}
-                        tintColor={Brand.orange}
+                        tintColor={colors.accent}
                       />
                     )}
                   </Pressable>
@@ -143,7 +143,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   error: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 13,
   },

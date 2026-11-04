@@ -163,7 +163,7 @@ export default function OrdersScreen() {
           {orders && orders.length > 0 && (
             <>
               <Text style={[styles.text, { color: colors.textSecondary }]}>
-                Total: <Text style={{ color: Brand.orange }}>{orders.length}</Text> pedidos · toca uno
+                Total: <Text style={{ color: colors.accent }}>{orders.length}</Text> pedidos · toca uno
                 para ver su estado
               </Text>
               <OrdersList orders={orders} />

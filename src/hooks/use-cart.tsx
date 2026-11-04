@@ -13,6 +13,7 @@ import {
 } from '@/domain/cart';
 import { cartSignature, newClientRef } from '@/domain/checkout-rules';
 import { completeProduct } from '@/domain/menu-layout';
+import { onSignedOut } from '@/hooks/use-auth';
 import type { Product } from '@/types/product';
 import { readCache, writeCache } from '@/utils/offline-cache';
 
@@ -100,6 +101,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
     saveAttempt(null);
   };
+
+  // Signing out leaves nothing of the order on the phone: items, notes and reference.
+  useEffect(
+    () =>
+      onSignedOut(() => {
+        setItems([]);
+        setAttempt(null);
+        writeCache(ATTEMPT_KEY, null);
+      }),
+    [],
+  );
 
   useEffect(() => {
     readCache<CartItem[]>(CART_KEY).then((saved) => {

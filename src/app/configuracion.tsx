@@ -23,7 +23,7 @@ function CardHeader({ icon, title, description }: { icon: SymbolViewProps['name'
   return (
     <View style={styles.cardHeader}>
       <View style={[styles.cardIcon, { backgroundColor: `${Brand.orange}1F`, borderColor: `${Brand.orange}55` }]}>
-        <SymbolView name={icon} size={20} tintColor={Brand.orange} />
+        <SymbolView name={icon} size={20} tintColor={colors.accent} />
       </View>
       <View style={styles.cardHeaderText}>
         <Text style={[styles.cardTitle, { color: colors.text }]}>{title}</Text>

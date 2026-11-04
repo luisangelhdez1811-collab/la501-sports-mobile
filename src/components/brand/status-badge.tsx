@@ -39,7 +39,7 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
 
   return (
     <View style={[styles.badge, { borderColor: color, backgroundColor: `${color}1A` }]}>
-      <Text style={[styles.text, { color }]}>{LABELS[status]}</Text>
+      <Text style={[styles.text, { color: colors.text }]}>{LABELS[status]}</Text>
     </View>
   );
 }

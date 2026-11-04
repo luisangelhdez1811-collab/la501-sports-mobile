@@ -21,11 +21,12 @@ export type OrderSummary = {
   trackingToken: string | null;
 };
 
-/** Oposición (ARCO): secondary uses of the customer's data they can switch off. */
+/**
+ * Oposición (ARCO): secondary uses of the customer's data they can switch off. There is no
+ * SMS preference: the restaurant doesn't send promotions by SMS (M-24, B-33).
+ */
 export type Privacy = {
   promoEmail: boolean;
-  /** Off until the customer turns it on. */
-  promoSms: boolean;
   /** Recommendations based on their past orders; on unless they oppose. */
   personalizedRecommendations: boolean;
 };
@@ -42,6 +43,8 @@ export type Account = {
   /** null: the server doesn't offer the privacy preferences yet. */
   privacy: Privacy | null;
   recentOrders: OrderSummary[];
+  /** The Aviso or the Terms changed since the customer accepted them (M-22). */
+  legalUpdateRequired: boolean;
 };
 
 const STATUSES: OrderStatus[] = ['pending', 'paid', 'failed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'];
@@ -101,10 +104,9 @@ async function profileRequest<T>(options: Parameters<typeof request>[1] = {}) {
 function toPrivacy(raw: unknown): Privacy | null {
   const obj = asObject(raw);
   // Without these fields it isn't the preferences (e.g. a bare `{ success: true }`).
-  if (!obj || !('promos_sms' in obj) || !('recomendaciones_personalizadas' in obj)) return null;
+  if (!obj || !('recomendaciones_personalizadas' in obj)) return null;
   return {
     promoEmail: Boolean(obj.promos_correo),
-    promoSms: Boolean(obj.promos_sms),
     personalizedRecommendations: obj.recomendaciones_personalizadas !== false,
   };
 }
@@ -130,7 +132,20 @@ export async function getAccount(signal?: AbortSignal): Promise<Account> {
       ),
     privacy,
     recentOrders: toOrders(pick(data, 'orders', 'recent_orders') ?? []),
+    legalUpdateRequired: (pick(data, 'legal_update_required') ?? user.legal_update_required) === true,
   };
+}
+
+/**
+ * Records that the customer accepted the current Terms and Aviso (Código de Comercio: proof
+ * of which version each person accepted). The versions come from /public/info.
+ */
+export async function acceptLegal(versions: { termsVersion: string; privacyVersion: string }) {
+  await request('/app/account/accept-legal', {
+    method: 'POST',
+    auth: true,
+    body: { terms_version: versions.termsVersion, privacy_version: versions.privacyVersion },
+  });
 }
 
 /** Sends a code to the NEW number; the change is saved only once that code is confirmed. */
@@ -172,7 +187,6 @@ export async function updateProfile(input: { name: string; email: string; phone:
 export async function updatePrivacy(changes: Partial<Privacy>): Promise<Privacy> {
   const body: Record<string, boolean> = {};
   if (changes.promoEmail !== undefined) body.promos_correo = changes.promoEmail;
-  if (changes.promoSms !== undefined) body.promos_sms = changes.promoSms;
   if (changes.personalizedRecommendations !== undefined) {
     body.recomendaciones_personalizadas = changes.personalizedRecommendations;
   }

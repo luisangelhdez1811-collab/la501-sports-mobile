@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { getAccount, type Account } from '@/api/account';
 import { OrdersList } from '@/components/account/orders-list';
 import { PhoneChange } from '@/components/account/phone-change';
+import { PointsInfo } from '@/components/account/points-info';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { OfflineBanner } from '@/components/brand/offline-banner';
@@ -115,12 +116,13 @@ export default function AccountScreen() {
           )}
         </View>
         <View style={[styles.stats, { borderTopColor: colors.border }]}>
-          <Stat value={account?.points ?? user.points} label="Puntos" color={Brand.orange} />
+          <Stat value={account?.points ?? user.points} label="Puntos" color={colors.accent} />
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <Stat value={account?.achievements ?? 0} label="Logros" color={Brand.greenLight} />
+          <Stat value={account?.achievements ?? 0} label="Logros" color={colors.success} />
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <Stat value={account?.reservations ?? 0} label="Reservas" color={colors.text} />
         </View>
+        {user.role === 'cliente' && <PointsInfo />}
       </FormCard>
 
       {!!loadError && <FormMessage type="error">{loadError}</FormMessage>}

@@ -236,7 +236,7 @@ const DishRow = memo(function DishRow({
           <Text style={[styles.rowPrice, { color: colors.text }]}>{meta[0]}</Text>
           {meta.length > 1 ? ` · ${meta.slice(1).join(' · ')}` : ''}
         </Text>
-        {!orderable && <Text style={styles.soldOut}>Agotado</Text>}
+        {!orderable && <Text style={[styles.soldOut, { color: colors.danger }]}>Agotado</Text>}
       </Pressable>
 
       {orderable && (
@@ -262,7 +262,7 @@ const DishRow = memo(function DishRow({
               {quantity}
             </Text>
             <Pressable accessibilityRole="button" accessibilityLabel={`Agregar uno de ${product.name}`} onPress={() => onAdd(product)} style={styles.step}>
-              <Text style={[styles.stepText, { color: Brand.orange }]}>+</Text>
+              <Text style={[styles.stepText, { color: colors.accent }]}>+</Text>
             </Pressable>
           </View>
         </>
@@ -375,7 +375,6 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyBold,
   },
   soldOut: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
   },

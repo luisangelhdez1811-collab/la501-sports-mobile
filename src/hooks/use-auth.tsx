@@ -4,6 +4,7 @@ import * as authApi from '@/api/auth';
 import type { RegisterInput, User } from '@/api/auth';
 import { ApiError, onSessionExpired } from '@/api/client';
 import { hasToken, persistSession } from '@/api/token-storage';
+import { forgetPersonalFiles } from '@/data/device-cleanup';
 import {
   deleteCache,
   deleteCacheByPrefix,
@@ -21,6 +22,17 @@ const SESSION_USER_KEY = 'session-user';
 function forgetUserData() {
   deleteCache(...USER_CACHE_KEYS);
   USER_CACHE_PREFIXES.forEach(deleteCacheByPrefix);
+}
+
+// Observer: stores with personal data (the cart, its pending reference) wipe themselves
+// when the person signs out or deletes the account, so nothing stays on the phone (M-26).
+const signOutListeners = new Set<() => void>();
+
+export function onSignedOut(listener: () => void) {
+  signOutListeners.add(listener);
+  return () => {
+    signOutListeners.delete(listener);
+  };
 }
 
 type AuthStatus = 'loading' | 'guest' | 'authenticated';
@@ -78,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onSessionExpired(() => {
       forgetUserData();
+      forgetPersonalFiles();
       setUserState(null);
       setStatus('guest');
     });
@@ -116,6 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     forgetUserData();
+    signOutListeners.forEach((listener) => listener());
+    await forgetPersonalFiles();
     setUserState(null);
     setStatus('guest');
     await authApi.logout().catch(() => {});
