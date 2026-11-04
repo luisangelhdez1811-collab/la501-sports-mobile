@@ -17,7 +17,7 @@ const MAP_HEIGHT = 300;
 // Opens the phone's maps app (Apple Maps on iOS, Google Maps on Android).
 function mapsUrl(query: string, directions: boolean) {
   const q = encodeURIComponent(query);
-  if (Platform.OS === 'ios') return directions ? `http://maps.apple.com/?daddr=${q}` : `http://maps.apple.com/?q=${q}`;
+  if (Platform.OS === 'ios') return directions ? `https://maps.apple.com/?daddr=${q}` : `https://maps.apple.com/?q=${q}`;
   return directions
     ? `https://www.google.com/maps/dir/?api=1&destination=${q}`
     : `https://www.google.com/maps/search/?api=1&query=${q}`;
