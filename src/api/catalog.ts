@@ -89,6 +89,7 @@ function toItem(raw: unknown, index: number, kind: Product['kind']): Product | n
     optionGroups: asArray(item.option_groups)
       .map(toOptionGroup)
       .filter((g): g is OptionGroup => g !== null),
+    ...(typeof item.alcoholic === 'boolean' ? { alcoholic: item.alcoholic } : {}),
   };
 }
 

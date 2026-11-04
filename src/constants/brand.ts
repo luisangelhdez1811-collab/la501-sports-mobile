@@ -13,6 +13,11 @@ export const Brand = {
   red: '#EF4444', // Complaints, cancellations, delete
   blue: '#2563EB', // Staff panel filters and actions
   white: '#FFFFFF', // Text on orange / green surfaces
+  // Fills under white text: these pass WCAG AA (4.5:1); orange / green above don't.
+  orangeFill: '#C2410C', // 5.18:1 with white
+  orangeFillPressed: '#9A3412',
+  greenFill: '#15803D', // 5.02:1 with white
+  greenFillPressed: '#166534',
 } as const;
 
 export type BrandScheme = 'light' | 'dark';
@@ -27,6 +32,10 @@ export type BrandPalette = {
   heroTop: string;
   imagePlaceholder: string;
   scrim: string;
+  /** Orange, green and amber for TEXT on this mode's background (AA contrast). */
+  accent: string;
+  success: string;
+  warning: string;
 };
 
 export const BrandPalettes: Record<BrandScheme, BrandPalette> = {
@@ -40,6 +49,9 @@ export const BrandPalettes: Record<BrandScheme, BrandPalette> = {
     heroTop: '#2A1A0C',
     imagePlaceholder: '#3A2A1C',
     scrim: 'rgba(15, 13, 10, 0.7)',
+    accent: '#FB923C',
+    success: '#4ADE80',
+    warning: '#FBBF24',
   },
   light: {
     background: '#FAF7F2',
@@ -51,6 +63,9 @@ export const BrandPalettes: Record<BrandScheme, BrandPalette> = {
     heroTop: '#FFE8D1',
     imagePlaceholder: '#F3E5D5',
     scrim: 'rgba(250, 247, 242, 0.75)',
+    accent: '#C2410C',
+    success: '#15803D',
+    warning: '#B45309',
   },
 };
 

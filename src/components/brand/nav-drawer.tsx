@@ -131,7 +131,7 @@ export function NavDrawer() {
               onPress={() => go('/login')}
               style={({ pressed }) => [
                 styles.signIn,
-                { backgroundColor: pressed ? Brand.orangeDark : Brand.orange },
+                { backgroundColor: pressed ? Brand.orangeFillPressed : Brand.orangeFill },
               ]}>
               <Text style={styles.signInText}>Iniciar sesión</Text>
             </Pressable>

@@ -4,10 +4,13 @@ import type { OrderStatus } from '@/api/account';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
+// "paid" also covers cash orders: confirmed, not collected yet. Never say "Pagado".
 const LABELS: Record<OrderStatus, string> = {
   pending: 'Pendiente',
-  paid: 'Pagado',
-  ready: '¡Listo!',
+  paid: 'Confirmado',
+  failed: 'Pago rechazado',
+  preparing: 'En preparación',
+  ready: 'Listo',
   delivering: 'En camino',
   delivered: 'Entregado',
   cancelled: 'Cancelado',
@@ -17,6 +20,8 @@ const LABELS: Record<OrderStatus, string> = {
 const COLORS: Partial<Record<OrderStatus, string>> = {
   pending: Brand.blue,
   paid: Brand.orange,
+  failed: Brand.red,
+  preparing: '#F59E0B',
   ready: Brand.greenLight,
   delivering: '#F59E0B',
   delivered: Brand.green,

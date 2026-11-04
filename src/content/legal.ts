@@ -26,7 +26,7 @@ export const PRIVACY_NOTICE: LegalDocument = {
   lead: 'Aviso de',
   accent: 'privacidad',
   description: 'Conoce cómo protegemos y tratamos tus datos personales de manera segura.',
-  updated: 'Octubre de 2026',
+  updated: 'Noviembre de 2026',
   blocks: [
     { type: 'h2', text: 'Introducción' },
     {
@@ -62,7 +62,7 @@ export const PRIVACY_NOTICE: LegalDocument = {
       items: [
         'Esta aplicación móvil La 501 Sports: registro, pedidos a domicilio, reservaciones y promociones.',
         'Nuestro sitio web y sus formularios (registro, reservaciones, pedidos, contacto, facturación, promociones).',
-        'Nuestro asistente de voz en Alexa y cualquier asistente conversacional o de inteligencia artificial que habilitemos.',
+        'Nuestro asistente de voz en Alexa y el asistente conversacional del sitio web.',
         'Interacciones directas: llamadas, WhatsApp, redes sociales o trato en el restaurante, cuando impliquen recabar datos personales.',
       ],
     },
@@ -79,10 +79,12 @@ export const PRIVACY_NOTICE: LegalDocument = {
     {
       type: 'table',
       rows: [
-        ['Registro e inicio de sesión', 'Nombre, correo electrónico, teléfono, contraseña, pregunta de seguridad e historial de acceso.'],
+        ['Registro e inicio de sesión', 'Nombre, correo electrónico, teléfono, contraseña, confirmación de mayoría de edad e historial de acceso.'],
+        ['Foto de perfil (opcional)', 'La imagen que usted elija con el selector de fotos de su teléfono. La app no accede a sus demás fotos.'],
         ['Reservaciones', 'Nombre, teléfono, correo electrónico, fecha y hora, número de personas y zona.'],
-        ['Pedido a domicilio', 'Nombre, teléfono, correo (opcional), dirección de entrega, productos, ingredientes excluidos e instrucciones.'],
-        ['Pagos', 'Referencia o folio de pago. No almacenamos los datos de su tarjeta: el pago se realiza en la página segura de un proveedor de pagos autorizado.'],
+        ['Pedido a domicilio', 'Nombre, teléfono, correo (opcional), dirección de entrega, productos con sus opciones, ingredientes excluidos, notas y la fecha en que aceptó el cobro del envío, confirmó su mayoría de edad (si pidió alcohol) y autorizó el uso de sus notas.'],
+        ['Pagos', 'Forma de pago y número de operación. No almacenamos los datos de su tarjeta: el pago con tarjeta se hace en la página segura de Mercado Pago.'],
+        ['Cancelaciones', 'Fecha, motivo (si lo indica) y estado de la devolución.'],
         ['Contacto', 'Nombre, teléfono, correo electrónico, asunto y mensaje.'],
         ['Promociones', 'Correo electrónico, únicamente si usted lo autoriza expresamente.'],
         ['Personal del restaurante', 'Nombre, datos de contacto y usuario.'],
@@ -155,14 +157,24 @@ export const PRIVACY_NOTICE: LegalDocument = {
     {
       type: 'p',
       strong: 'Datos sensibles (alergias): ',
-      text: 'consentimiento expreso al proporcionarlos voluntariamente en las notas.',
+      text: 'si escribe notas en un pedido, la app le pide marcar una casilla autorizando su uso solo para preparar su pedido.',
     },
-
-    { type: 'h2', text: '6. Información guardada en su teléfono' },
     {
       type: 'p',
-      text: 'La app no usa publicidad ni herramientas de rastreo. Para funcionar mejor guarda en su teléfono:',
+      strong: 'Mayoría de edad: ',
+      text: 'se confirma con una casilla al crear la cuenta y, de nuevo, al pedir bebidas con alcohol.',
     },
+
+    { type: 'h2', text: '6. Esta aplicación móvil' },
+    {
+      type: 'list',
+      items: [
+        'No usa publicidad, analítica ni herramientas de rastreo.',
+        'No pide su ubicación ni acceso a la cámara, el micrófono o sus contactos.',
+        'La foto de perfil se elige con el selector de fotos del sistema y solo se envía la que usted elige.',
+      ],
+    },
+    { type: 'p', text: 'Para funcionar mejor guarda en su teléfono:' },
     {
       type: 'list',
       items: [
@@ -174,7 +186,19 @@ export const PRIVACY_NOTICE: LegalDocument = {
     { type: 'h2', text: '7. Encargados del tratamiento y transferencias' },
     {
       type: 'p',
-      text: 'Nos apoyamos en proveedores de servicios tecnológicos y de pagos que tratan datos por nuestra cuenta y bajo nuestras instrucciones. Se obligan a usar los datos solo para la operación del restaurante y a guardar confidencialidad. No vendemos ni transferimos sus datos a terceros para otros fines.',
+      text: 'Nos apoyamos en estos proveedores, que tratan datos por nuestra cuenta y bajo nuestras instrucciones. Se obligan a usarlos solo para la operación del restaurante y a guardar confidencialidad. No vendemos ni transferimos sus datos a terceros para otros fines.',
+    },
+    {
+      type: 'table',
+      rows: [
+        ['Hostinger', 'Servidor donde se guardan la cuenta, los pedidos y las reservaciones.'],
+        ['Mercado Pago', 'Cobro con tarjeta y devoluciones.'],
+        ['Twilio', 'Envío de códigos de verificación por SMS.'],
+        ['Pusher', 'Avisos en tiempo real al personal del restaurante.'],
+        ['Cloudinary', 'Almacenamiento de imágenes (fotos del menú y de perfil).'],
+        ['Google (Gemini)', 'Asistente conversacional del sitio web.'],
+        ['Amazon (Alexa)', 'Asistente de voz.'],
+      ],
     },
 
     { type: 'h2', text: '8. Medios para limitar el uso o divulgación' },
@@ -196,10 +220,10 @@ export const PRIVACY_NOTICE: LegalDocument = {
     {
       type: 'table',
       rows: [
-        ['Acceso', 'Consulte sus datos y descargue una copia.'],
-        ['Rectificación', 'Corrija su nombre, correo o teléfono.'],
+        ['Acceso', 'Consulte sus datos y descargue una copia completa como archivo.'],
+        ['Rectificación', 'Corrija su nombre, correo, teléfono o foto de perfil.'],
         ['Cancelación', 'Elimine su cuenta y sus datos personales.'],
-        ['Oposición', 'Active o desactive las promociones.'],
+        ['Oposición', 'Active o desactive las promociones por correo o SMS y las recomendaciones según sus pedidos.'],
       ],
     },
     { type: 'h3', text: 'Por correo' },
@@ -233,7 +257,7 @@ export const PRIVACY_NOTICE: LegalDocument = {
     { type: 'h2', text: '13. Menores de edad' },
     {
       type: 'p',
-      text: 'El registro, los pedidos en línea y los pagos están dirigidos a mayores de 18 años. Los datos de un menor vinculados a una orden (como alergias) deben ser proporcionados por el adulto responsable.',
+      text: 'El registro, los pedidos en línea y los pagos están dirigidos a mayores de 18 años: la app lo pide confirmar al crear la cuenta y al pedir bebidas con alcohol. Los datos de un menor vinculados a una orden (como alergias) deben ser proporcionados por el adulto responsable.',
     },
 
     { type: 'h2', text: '14. Asistentes de voz e inteligencia artificial' },
@@ -268,7 +292,7 @@ export const TERMS: LegalDocument = {
   lead: 'Términos y',
   accent: 'condiciones',
   description: 'Reglas de uso de la app, pedidos, reservaciones y servicios digitales.',
-  updated: 'Octubre de 2026',
+  updated: 'Noviembre de 2026',
   blocks: [
     { type: 'h2', text: '1. Identidad del proveedor' },
     {
@@ -339,7 +363,7 @@ export const TERMS: LegalDocument = {
     { type: 'h2', text: '7. Formas de pago' },
     {
       type: 'p',
-      text: 'Aceptamos efectivo al recibir y pago en línea con tarjeta de crédito o débito. El pago con tarjeta se realiza en la página segura de un proveedor de pagos autorizado; La 501 Sports no ve ni almacena los datos de su tarjeta.',
+      text: 'Aceptamos efectivo al recibir y pago en línea con tarjeta de crédito o débito. El pago con tarjeta se realiza en la página segura de Mercado Pago; La 501 Sports no ve ni almacena los datos de su tarjeta. Un pedido con tarjeta se envía a cocina solo cuando Mercado Pago confirma el pago.',
     },
 
     { type: 'h2', text: '8. Propinas' },
@@ -352,13 +376,19 @@ export const TERMS: LegalDocument = {
     { type: 'h2', text: '9. Envío a domicilio' },
     {
       type: 'p',
-      text: 'El total mostrado en la app corresponde a los productos. El costo del envío lo cobra el repartidor por separado al entregar. Los tiempos de preparación y entrega son estimados y pueden variar según la demanda.',
+      text: 'El total mostrado en la app corresponde a los productos y no incluye el envío. El costo del envío lo cobra el repartidor al entregar; la app le indica cómo se cobra y le pide aceptarlo antes de confirmar cada pedido. Los tiempos de preparación y entrega son estimados y pueden variar según la demanda.',
     },
 
     { type: 'h2', text: '10. Cancelaciones de pedidos' },
     {
       type: 'p',
-      text: 'Puede cancelar un pedido sin costo mientras no haya entrado a preparación en cocina. Una vez iniciada la preparación no podrá cancelarse, por tratarse de alimentos perecederos elaborados al momento.',
+      text: 'Puede cancelar un pedido sin costo desde la pantalla de seguimiento mientras no haya entrado a preparación en cocina. Si pagó con tarjeta, le devolvemos el pago a la misma tarjeta (según su banco, puede tardar de 5 a 10 días hábiles en verse). Una vez iniciada la preparación no podrá cancelarse, por tratarse de alimentos perecederos elaborados al momento.',
+    },
+
+    { type: 'h2', text: '10 bis. Bebidas con alcohol' },
+    {
+      type: 'p',
+      text: 'La venta de bebidas alcohólicas es solo para mayores de 18 años. Al pedirlas, usted lo confirma en la app y deberá mostrar una identificación oficial al recibirlas; si no la muestra, el repartidor no las entregará.',
     },
 
     { type: 'h2', text: '11. Cambios, devoluciones y reembolsos' },

@@ -23,7 +23,7 @@ const PURPOSE: { icon: Icon; title: string; color: string; text: string }[] = [
     icon: { ios: 'flag.fill', android: 'flag', web: 'flag' },
     title: 'Nuestra misión',
     color: Brand.orange,
-    text: 'Ofrecer al cliente una experiencia diferente en el municipio, con gran sabor y diversión, de la mano de productos de calidad y de un espacio recreativo diseñado para disfrutar las mejores transmisiones deportivas, atendido por personal joven, entusiasta y capacitado.',
+    text: 'Ofrecer al cliente una experiencia diferente en el municipio, con gran sabor y diversión, de la mano de productos de calidad y de un espacio recreativo diseñado para disfrutar las transmisiones deportivas, atendido por personal joven, entusiasta y capacitado.',
   },
   {
     icon: { ios: 'eye.fill', android: 'visibility', web: 'visibility' },
@@ -42,7 +42,7 @@ const VALUES: { icon: Icon; title: string; text: string }[] = [
   {
     icon: { ios: 'rosette', android: 'workspace_premium', web: 'workspace_premium' },
     title: 'Profesionalismo',
-    text: 'Personal joven, capacitado y comprometido para brindarte siempre la mejor atención.',
+    text: 'Personal joven, capacitado y comprometido para atenderte con gusto.',
   },
   {
     icon: { ios: 'hand.raised.fill', android: 'handshake', web: 'handshake' },
@@ -109,7 +109,7 @@ export default function AboutScreen() {
         tag="La 501 Sports Restaurant"
         lead="¿Quiénes"
         accent="somos?"
-        description="Donde la pasión por el deporte y la buena comida se unen para vivir la mejor experiencia junto a toda la afición."
+        description="Donde la pasión por el deporte y la buena comida se unen para vivir cada partido junto a toda la afición."
       />
 
       <View style={styles.body}>
@@ -133,8 +133,8 @@ export default function AboutScreen() {
         <View style={[card, styles.homeCard]}>
           <BrandTitle lead="Más que un restaurante, somos tu" accent="segundo hogar" size={30} />
           <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-            Somos el lugar favorito de la afición en Huejutla para disfrutar alitas, boneless,
-            hamburguesas y bebidas refrescantes mientras vivimos las mejores transmisiones deportivas en
+            Somos un restaurante y sports bar en Huejutla para disfrutar alitas, boneless,
+            hamburguesas y bebidas refrescantes mientras vivimos las transmisiones deportivas en
             vivo, en un espacio pensado para reunir a toda la afición.
           </Text>
         </View>
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     height: DOT,
     borderRadius: DOT / 2,
     borderWidth: 3,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     marginTop: 20,
   },
   railLine: {

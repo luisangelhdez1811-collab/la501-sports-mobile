@@ -80,7 +80,7 @@ function IngredientToggle({ ingredient, included, onToggle }: { ingredient: Ingr
       <View
         style={[
           styles.box,
-          included ? { backgroundColor: Brand.orange, borderColor: Brand.orange } : { borderColor: colors.textSecondary },
+          included ? { backgroundColor: Brand.orangeFill, borderColor: Brand.orange } : { borderColor: colors.textSecondary },
         ]}>
         {included && <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={14} tintColor={Brand.white} />}
       </View>
@@ -350,7 +350,7 @@ export function CustomizeSheet({
               <TextInput
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Ej: bien dorado, más picante, sin sal…"
+                placeholder="Ej: sin sal, más picante, término de la carne…"
                 placeholderTextColor={colors.textSecondary}
                 selectionColor={Brand.orange}
                 multiline
@@ -358,7 +358,9 @@ export function CustomizeSheet({
                 style={[styles.notes, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
                 accessibilityLabel="Comentarios para la cocina"
               />
-              <Text style={[styles.help, { color: colors.textSecondary }]}>Cualquier instrucción especial para la cocina.</Text>
+              <Text style={[styles.help, { color: colors.textSecondary }]}>
+                Cualquier instrucción especial para la cocina. {notes.length}/{MAX_NOTES}
+              </Text>
             </View>
           </ScrollView>
 

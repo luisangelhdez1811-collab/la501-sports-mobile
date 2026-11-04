@@ -11,8 +11,8 @@ type SkewButtonProps = {
 };
 
 const COLORS = {
-  orange: { idle: Brand.orange, pressed: Brand.orangeDark },
-  green: { idle: Brand.green, pressed: Brand.greenDark },
+  orange: { idle: Brand.orangeFill, pressed: Brand.orangeFillPressed },
+  green: { idle: Brand.greenFill, pressed: Brand.greenFillPressed },
 };
 
 /** Slanted call-to-action ("VER MENÚ", "UNIRME →", "INICIAR SESIÓN"). */

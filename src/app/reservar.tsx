@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -124,7 +125,7 @@ export default function ReserveScreen() {
         lead="Reser"
         accent="vaciones"
         accentColor="green"
-        description="Aparta tu mesa y disfruta de la mejor experiencia. Sujeto a confirmación del personal."
+        description="Aparta tu mesa y ven a disfrutar del deporte y la buena comida. Sujeto a confirmación del personal."
       />
 
       <View style={styles.body}>
@@ -267,6 +268,13 @@ export default function ReserveScreen() {
               disabled={offline}
             />
           )}
+          <Text style={[styles.privacy, { color: colors.textSecondary }]}>
+            Usamos estos datos solo para gestionar y confirmar tu reservación. Consulta el{' '}
+            <Text style={[styles.privacyLink, { color: colors.accent }]} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
+              Aviso de privacidad
+            </Text>
+            .
+          </Text>
         </FormCard>
 
         <ScheduleCard hours={hours} />
@@ -378,5 +386,14 @@ const styles = StyleSheet.create({
   noticeStrong: {
     color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
+  },
+  privacy: {
+    fontFamily: BrandFonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  privacyLink: {
+    fontFamily: BrandFonts.bodyBold,
+    textDecorationLine: 'underline',
   },
 });

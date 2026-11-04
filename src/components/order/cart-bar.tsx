@@ -20,7 +20,7 @@ export function CartBar() {
         accessibilityRole="button"
         accessibilityLabel={`Ver tu orden, ${cart.count} productos, ${formatMoney(cart.total)}`}
         onPress={() => router.push('/carrito')}
-        style={({ pressed }) => [styles.bar, { backgroundColor: pressed ? Brand.orangeDark : Brand.orange }]}>
+        style={({ pressed }) => [styles.bar, { backgroundColor: pressed ? Brand.orangeFillPressed : Brand.orangeFill }]}>
         <View style={styles.count}>
           <Text style={styles.countText}>{cart.count}</Text>
         </View>
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     paddingHorizontal: 6,
-    backgroundColor: Brand.green,
+    backgroundColor: Brand.greenFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

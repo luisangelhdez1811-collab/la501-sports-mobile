@@ -85,12 +85,12 @@ export type RegisterInput = {
   name: string;
   email: string;
   phone: string;
-  securityQuestion: string;
-  securityAnswer: string;
   password: string;
   passwordConfirmation: string;
   /** Optional, never pre-checked: promotions by email (secondary purpose). */
   promoOptIn: boolean;
+  /** The service is for adults only (it sells alcohol); never pre-checked. */
+  adult: boolean;
 };
 
 export async function register(input: RegisterInput) {
@@ -100,14 +100,13 @@ export async function register(input: RegisterInput) {
       name: input.name.trim(),
       email: input.email.trim().toLowerCase(),
       telefono: input.phone,
-      pregunta_secreta: input.securityQuestion,
-      respuesta_secreta: input.securityAnswer.trim(),
       password: input.password,
       password_confirmation: input.passwordConfirmation,
       // Explicit consent recorded with the account (checkboxes are never pre-checked).
       terms: true,
       acepta_aviso_privacidad: true,
       acepta_promociones: input.promoOptIn,
+      mayor_de_edad: input.adult,
     },
   });
   // Some backends log the user in on registration; if a token comes back, keep it.

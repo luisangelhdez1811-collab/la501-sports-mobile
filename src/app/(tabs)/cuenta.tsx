@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     borderRadius: 52,
   },
   avatarFallback: {
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

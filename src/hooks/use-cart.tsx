@@ -11,6 +11,7 @@ import {
   type AddOptions,
   type CartItem,
 } from '@/domain/cart';
+import { cartSignature, newClientRef } from '@/domain/checkout-rules';
 import { completeProduct } from '@/domain/menu-layout';
 import type { Product } from '@/types/product';
 import { readCache, writeCache } from '@/utils/offline-cache';
@@ -18,6 +19,15 @@ import { readCache, writeCache } from '@/utils/offline-cache';
 export type { CartItem } from '@/domain/cart';
 
 const CART_KEY = 'cart';
+const ATTEMPT_KEY = 'checkout-attempt';
+
+/**
+ * The current checkout attempt: its reference (client_ref) is reused while the cart doesn't
+ * change, so a retry after a dropped connection never creates a second order. With a card,
+ * `awaitingPayment` is the order whose payment isn't confirmed yet: the cart stays until it is.
+ */
+type Attempt = { signature: string; ref: string; awaitingPayment: string | null };
+
 // A cart left for days probably has stale prices/availability; start fresh instead.
 const CART_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -35,6 +45,16 @@ type CartContextValue = {
   /** −1 on the dish's most recent line (the menu card's "−"). */
   removeOneOf: (productKey: string) => void;
   clear: () => void;
+  /** Reference for sending this cart: the same one until the cart changes. */
+  clientRef: () => string;
+  /** The server said the reference belongs to someone else: use a new one. */
+  renewClientRef: () => string;
+  /** Card order sent, payment not confirmed: keep the cart until it is. */
+  holdForPayment: (trackingToken: string) => void;
+  /** Tracking confirmed this order: the cart can go. */
+  paymentConfirmed: (trackingToken: string) => void;
+  /** Tracking token of the card order still waiting for its payment, if any. */
+  awaitingPayment: string | null;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -47,7 +67,39 @@ const CartContext = createContext<CartContextValue | null>(null);
  */
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [attempt, setAttempt] = useState<Attempt | null>(null);
   const restored = useRef(false);
+
+  useEffect(() => {
+    readCache<Attempt>(ATTEMPT_KEY).then((saved) => {
+      if (saved?.data?.ref) setAttempt((current) => current ?? saved.data);
+    });
+  }, []);
+
+  const saveAttempt = (next: Attempt | null) => {
+    setAttempt(next);
+    // Written right away: the reference must survive the app closing mid-payment.
+    writeCache(ATTEMPT_KEY, next);
+  };
+
+  const clientRef = () => {
+    const signature = cartSignature(items);
+    if (attempt && attempt.signature === signature) return attempt.ref;
+    const ref = newClientRef();
+    saveAttempt({ signature, ref, awaitingPayment: null });
+    return ref;
+  };
+
+  const renewClientRef = () => {
+    const ref = newClientRef();
+    saveAttempt({ signature: cartSignature(items), ref, awaitingPayment: null });
+    return ref;
+  };
+
+  const clear = () => {
+    setItems([]);
+    saveAttempt(null);
+  };
 
   useEffect(() => {
     readCache<CartItem[]>(CART_KEY).then((saved) => {
@@ -73,7 +125,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     remove: (lineId) => setItems((current) => removeItem(current, lineId)),
     quantityOf: (productKey) => quantityOf(items, productKey),
     removeOneOf: (productKey) => setItems((current) => removeOneOf(current, productKey)),
-    clear: () => setItems([]),
+    clear,
+    clientRef,
+    renewClientRef,
+    holdForPayment: (trackingToken) =>
+      saveAttempt({ signature: cartSignature(items), ref: attempt?.ref ?? newClientRef(), awaitingPayment: trackingToken }),
+    paymentConfirmed: (trackingToken) => {
+      if (attempt?.awaitingPayment === trackingToken) clear();
+    },
+    awaitingPayment: attempt?.awaitingPayment ?? null,
   };
 
   return <CartContext value={value}>{children}</CartContext>;

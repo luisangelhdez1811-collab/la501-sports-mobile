@@ -1,9 +1,11 @@
 import { ApiError, request } from './client';
-import { asArray, asNumber, asObject, asString, pick, unwrap } from './parse';
+import { asArray, asHttpsUrl, asNumber, asObject, asString, pick, unwrap, type Json } from './parse';
 
 export type OrderStatus =
   | 'pending'
   | 'paid'
+  | 'failed'
+  | 'preparing'
   | 'ready'
   | 'delivering'
   | 'delivered'
@@ -30,6 +32,8 @@ export type Privacy = {
 
 export type Account = {
   phone: string;
+  /** Profile photo (the same as on the website); https only. */
+  avatar: string | null;
   memberSince: Date | null;
   points: number;
   achievements: number;
@@ -40,7 +44,7 @@ export type Account = {
   recentOrders: OrderSummary[];
 };
 
-const STATUSES: OrderStatus[] = ['pending', 'paid', 'ready', 'delivering', 'delivered', 'cancelled'];
+const STATUSES: OrderStatus[] = ['pending', 'paid', 'failed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'];
 
 export function toStatus(value: unknown): OrderStatus {
   const status = asString(value).toLowerCase();
@@ -113,6 +117,7 @@ export async function getAccount(signal?: AbortSignal): Promise<Account> {
   const privacy = toPrivacy(data.privacy);
   return {
     phone: asString(pick(user, 'telefono', 'phone') ?? pick(data, 'telefono', 'phone')),
+    avatar: asHttpsUrl(pick(user, 'avatar', 'avatar_url', 'foto')),
     memberSince: toDate(pick(user, 'created_at', 'member_since') ?? data.member_since),
     points: asNumber(pick(stats, 'points', 'puntos') ?? user.points),
     achievements: asNumber(pick(stats, 'achievements', 'achievements_count', 'logros')),
@@ -217,15 +222,79 @@ export async function getMyOrders(signal?: AbortSignal) {
   return toOrders(await request<unknown>('/app/orders', { auth: true, signal }));
 }
 
-export async function trackOrder(token: string, signal?: AbortSignal) {
-  if (!toTrackingToken(token)) throw new Error('Invalid tracking token');
-  const data = unwrap(await request<unknown>(`/app/orders/track/${token}`, { signal }));
+/** cancelled: whether the card payment was returned automatically or will be by hand. */
+export type RefundStatus = 'refunded' | 'manual' | null;
+
+export type Tracking = {
+  status: OrderStatus;
+  folio: string;
+  total: number;
+  /** null: older servers don't say it. */
+  paymentMethod: 'efectivo' | 'tarjeta' | null;
+  /** The kitchen hasn't started: the customer can still cancel. */
+  canCancel: boolean;
+  refundStatus: RefundStatus;
+};
+
+function toTracking(raw: unknown): Tracking {
+  const data = unwrap(raw);
   const order = asObject(data.order) ?? data;
+  const field = (key: string) => pick(data, key) ?? pick(order, key);
+  const method = asString(field('payment_method')).toLowerCase();
+  const refund = asString(field('refund_status')).toLowerCase();
   return {
-    status: toStatus(pick(data, 'status') ?? order.status),
+    status: toStatus(field('status')),
     folio: asString(pick(order, 'folio', 'id')),
     total: asNumber(order.total),
+    paymentMethod: method.startsWith('tarjeta') ? 'tarjeta' : method.startsWith('efectivo') ? 'efectivo' : null,
+    canCancel: field('can_cancel') === true,
+    refundStatus: refund === 'refunded' || refund === 'manual' ? refund : null,
   };
+}
+
+export async function trackOrder(token: string, signal?: AbortSignal): Promise<Tracking> {
+  if (!toTrackingToken(token)) throw new Error('Invalid tracking token');
+  return toTracking(await request<unknown>(`/app/orders/track/${token}`, { signal }));
+}
+
+/** The customer cancels before the kitchen starts; a card payment is returned. */
+export async function cancelOrder(token: string, reason = ''): Promise<Tracking> {
+  if (!toTrackingToken(token)) throw new Error('Invalid tracking token');
+  const data = await request<unknown>(`/app/orders/track/${token}/cancel`, {
+    method: 'POST',
+    body: reason.trim() ? { reason: reason.trim().slice(0, 200) } : {},
+  });
+  return toTracking(data);
+}
+
+/**
+ * Acceso (ARCO): the COMPLETE copy of the customer's data, as the server keeps it. The app
+ * never builds it from what it has on screen: only the server has everything.
+ */
+export async function exportMyData(signal?: AbortSignal): Promise<Json> {
+  const data = unwrap(await request<unknown>('/app/account/export', { auth: true, signal }));
+  if (!asObject(data.titular)) {
+    throw new ApiError('No se pudo generar tu copia de datos. Intenta de nuevo más tarde.', 0);
+  }
+  return data;
+}
+
+const AVATAR_TYPES = /^image\/(jpeg|png|webp)$/;
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Changes the profile photo (the same one as on the website). Returns the new URL. */
+export async function uploadAvatar(file: { uri: string; mimeType?: string | null }): Promise<string | null> {
+  const type = file.mimeType && AVATAR_TYPES.test(file.mimeType) ? file.mimeType : 'image/jpeg';
+  const extension = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+  const form = new FormData();
+  // React Native uploads the file from its uri in this shape.
+  form.append('avatar', { uri: file.uri, name: `perfil.${extension}`, type } as unknown as Blob);
+  const data = unwrap(await request<unknown>('/app/account/avatar', { method: 'POST', auth: true, body: form }));
+  return asHttpsUrl(data.avatar);
+}
+
+export async function deleteAvatar() {
+  await request('/app/account/avatar', { method: 'DELETE', auth: true });
 }
 
 export async function requestOrderOtp(phone: string) {

@@ -1,10 +1,12 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { useBrandTheme } from '@/hooks/use-brand-theme';
 
-/** Inline success / error banner for forms. */
-export function FormMessage({ type, children }: { type: 'error' | 'success'; children: string }) {
-  const color = type === 'error' ? Brand.red : Brand.greenLight;
+/** Inline success / error / info banner for forms. */
+export function FormMessage({ type, children }: { type: 'error' | 'success' | 'info'; children: string }) {
+  const { colors } = useBrandTheme();
+  const color = type === 'error' ? Brand.red : type === 'success' ? colors.success : colors.warning;
   return (
     <View
       accessibilityRole="alert"

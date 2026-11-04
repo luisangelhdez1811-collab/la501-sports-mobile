@@ -42,7 +42,7 @@ function ActionButton({
       style={({ pressed }) => [
         styles.action,
         filled
-          ? { backgroundColor: pressed ? Brand.orangeDark : Brand.orange, borderColor: Brand.orange }
+          ? { backgroundColor: pressed ? Brand.orangeFillPressed : Brand.orangeFill, borderColor: Brand.orange }
           : { backgroundColor: pressed ? colors.border : colors.background, borderColor: colors.border },
       ]}>
       <SymbolView name={icon} size={18} tintColor={filled ? Brand.white : Brand.orange} />
@@ -61,7 +61,7 @@ export default function LocationScreen() {
   const address = info?.address || DEFAULT_ADDRESS;
   const query = info?.mapQuery || DEFAULT_MAP_QUERY;
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
-  // "Av. Deportiva #501, Col. Centro, CP 43000, …" → street as the title, the rest below.
+  // "Plaza de la Revolución Mexicana #16, Col. Centro, …" → street as the title, the rest below.
   const [street, ...rest] = address.split(',').map((part) => part.trim());
   const open = (directions: boolean) => Linking.openURL(mapsUrl(query, directions)).catch(() => {});
 
@@ -80,7 +80,7 @@ export default function LocationScreen() {
         tag="La 501 Sports Restaurant"
         lead="Encuéntranos"
         accent="aquí"
-        description="Ven a visitarnos y disfruta de la mejor experiencia deportiva y gastronómica de la ciudad."
+        description="Ven a visitarnos a disfrutar del deporte y la buena comida."
       />
 
       <View style={styles.body}>

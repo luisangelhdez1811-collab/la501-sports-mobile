@@ -22,7 +22,7 @@ function StepButton({ symbol, label, filled, onPress }: { symbol: '−' | '+'; l
       style={({ pressed }) => [
         styles.step,
         filled
-          ? { backgroundColor: pressed ? Brand.greenDark : Brand.green }
+          ? { backgroundColor: pressed ? Brand.greenFillPressed : Brand.greenFill }
           : { backgroundColor: pressed ? `${Brand.red}33` : `${Brand.red}1A`, borderColor: `${Brand.red}55`, borderWidth: 1 },
       ]}>
       <Text style={[styles.stepText, { color: filled ? Brand.white : colors.text }]}>{symbol}</Text>

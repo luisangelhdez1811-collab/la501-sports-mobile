@@ -7,6 +7,24 @@ export const API_BASE_URL = 'https://lavender-ram-537394.hostingersite.com/api/v
 
 export const API_TIMEOUT_MS = 15000;
 
+const WEB_BASE_URL = API_BASE_URL.replace(/\/api\/v1$/, '');
+
+/**
+ * Public web pages, as a fallback when /public/info can't be reached (the server's links
+ * win). `deleteAccount` is the page Google Play asks for; the web publishes it in B-17.
+ */
+export const WEB_URLS = {
+  privacy: `${WEB_BASE_URL}/aviso-de-privacidad`,
+  terms: `${WEB_BASE_URL}/terminos-y-condiciones`,
+  deleteAccount: `${WEB_BASE_URL}/eliminar-cuenta`,
+} as const;
+
+/**
+ * Card payments (Mercado Pago). Turned off here or from the server (`payments.card_enabled`
+ * in /public/info) when the real $1 test charge fails: the checkout then only offers cash.
+ */
+export const CARD_PAYMENTS_ENABLED = true;
+
 // Plain string parsing: React Native's URL doesn't implement `hostname` everywhere.
 export const API_HOST = API_BASE_URL.replace(/^https:\/\//, '').split(/[/:]/)[0];
 

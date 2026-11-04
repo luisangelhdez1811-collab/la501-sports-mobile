@@ -151,7 +151,9 @@ async function send<T>(path: string, options: RequestOptions, retried: boolean):
   }
 
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // A file upload (FormData) goes as is: fetch sets the multipart boundary itself.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
   if (auth) {
     const token = await getToken();
@@ -168,7 +170,7 @@ async function send<T>(path: string, options: RequestOptions, retried: boolean):
     res = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isForm ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
       credentials: 'omit',
     });

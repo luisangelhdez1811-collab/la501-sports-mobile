@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 14,
     right: 14,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     paddingHorizontal: 12,
     paddingVertical: 4,
     transform: [{ skewX: '-12deg' }],

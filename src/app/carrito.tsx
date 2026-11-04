@@ -118,12 +118,13 @@ export default function CartScreen() {
             </View>
 
             <View style={styles.totalRow}>
-              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total a pagar</Text>
+              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total de tus productos</Text>
               <Text style={[styles.total, { color: colors.text }]}>
-                <Text style={{ color: Brand.orange }}>$</Text>
+                <Text style={{ color: colors.accent }}>$</Text>
                 {formatMoney(cart.total).slice(1)}
               </Text>
             </View>
+            <Text style={[styles.promoNote, { color: colors.text }]}>No incluye el envío: lo cobra el repartidor al entregar.</Text>
             {cart.items.some((item) => item.product.price === 0 && !!item.product.priceLabel) && (
               <Text style={[styles.promoNote, { color: colors.textSecondary }]}>
                 + promociones: su precio se suma al confirmar tu pedido.

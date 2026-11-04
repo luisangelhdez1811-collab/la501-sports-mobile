@@ -8,7 +8,8 @@ import type { Ingredient, Product } from '@/types/product';
  */
 
 export const MAX_QUANTITY = 99;
-export const MAX_NOTES = 300;
+// The server rejects longer notes (and the order with them).
+export const MAX_NOTES = 100;
 
 export type CartItem = {
   /** Same product with different customizations becomes separate lines. */

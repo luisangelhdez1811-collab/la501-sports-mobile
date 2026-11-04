@@ -64,6 +64,7 @@ type ProductDetailSheetProps = {
 
 const ingredientKey = (ingredient: Ingredient) => String(ingredient.id ?? ingredient.name);
 const MAX_QUANTITY = 50;
+const MAX_NOTES = 100;
 const AMBER = '#D97706';
 
 function IngredientToggle({
@@ -90,7 +91,7 @@ function IngredientToggle({
         style={[
           styles.box,
           included
-            ? { backgroundColor: Brand.orange, borderColor: Brand.orange }
+            ? { backgroundColor: Brand.orangeFill, borderColor: Brand.orange }
             : { borderColor: colors.textSecondary },
         ]}>
         {included && (
@@ -421,17 +422,21 @@ export function ProductDetailSheet({
                     <TextInput
                       value={notes}
                       onChangeText={setNotes}
-                      placeholder="Ej: papas extra, salsa extra, más picante, sin sal…"
+                      // Only things that cost nothing: paid extras are picked as options, with their price.
+                      placeholder="Ej: sin sal, más picante, término de la carne…"
                       placeholderTextColor={colors.textSecondary}
                       selectionColor={Brand.orange}
                       multiline
-                      maxLength={300}
+                      maxLength={MAX_NOTES}
                       style={[
                         styles.notes,
                         { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
                       ]}
                       accessibilityLabel="Comentarios para la cocina"
                     />
+                    <Text style={[styles.counter, { color: colors.textSecondary }]}>
+                      {notes.length}/{MAX_NOTES}
+                    </Text>
                   </View>
                 )}
 
@@ -746,6 +751,13 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
     paddingTop: 2,
+  },
+  counter: {
+    alignSelf: 'flex-end',
+    marginTop: -4,
+    fontFamily: BrandFonts.body,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
   notice: {
     fontFamily: BrandFonts.bodyBold,

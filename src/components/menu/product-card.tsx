@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     borderRadius: Radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 4,

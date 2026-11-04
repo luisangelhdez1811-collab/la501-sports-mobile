@@ -34,6 +34,14 @@ export type CheckoutInput = {
   address: string;
   email: string;
   paymentMethod: PaymentMethod;
+  /** Same reference on every retry of one cart, so the server never registers it twice. */
+  clientRef: string;
+  /** Accepted how delivery is charged (it isn't in the total). */
+  deliveryTermsAccepted: boolean;
+  /** 18+ confirmed; required by the server when the order has alcohol. */
+  adultConfirmed: boolean;
+  /** Allowed the use of health data written in the notes (allergies). */
+  healthDataConsent: boolean;
 };
 
 export type CheckoutResult = {
@@ -41,6 +49,8 @@ export type CheckoutResult = {
   /** Hosted payment page for card payments (opened in the system browser). */
   checkoutUrl: string | null;
   trackingToken: string;
+  /** The reference already existed: this is that order, not a new one. */
+  duplicate: boolean;
 };
 
 /**
@@ -57,8 +67,8 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         product_id: item.product.kind === 'product' ? item.product.id : null,
         promotion_id: item.product.kind === 'promotion' ? item.product.id : null,
         quantity: item.quantity,
-        // NOTE: confirm with the backend whether it expects ingredient ids or names.
-        excluded_ingredients: item.excluded.map((ingredient) => ingredient.id ?? ingredient.name),
+        // The server keeps the name; it's what the kitchen reads ("Sin: Cebolla").
+        excluded_ingredients: item.excluded.map((ingredient) => ingredient.name),
         notes: item.notes || null,
         ...choicesPayload(item.selection, offeredBy(item.product)),
       })),
@@ -67,6 +77,10 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
       customer_address: input.address.trim(),
       customer_email: input.email.trim().toLowerCase() || null,
       payment_method: input.paymentMethod,
+      client_ref: input.clientRef,
+      delivery_terms_accepted: input.deliveryTermsAccepted,
+      adult_confirmed: input.adultConfirmed,
+      health_data_consent: input.healthDataConsent,
     },
   });
 
@@ -86,5 +100,6 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     // Never open a non-HTTPS payment page.
     checkoutUrl: checkoutUrl.startsWith('https://') ? checkoutUrl : null,
     trackingToken,
+    duplicate: pick(root, 'duplicate') === true || pick(body, 'duplicate') === true,
   };
 }

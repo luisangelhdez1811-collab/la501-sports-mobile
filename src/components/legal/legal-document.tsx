@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     marginTop: 8,
   },
   listText: {

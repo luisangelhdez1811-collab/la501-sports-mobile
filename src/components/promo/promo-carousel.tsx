@@ -92,6 +92,6 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 22,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
   },
 });

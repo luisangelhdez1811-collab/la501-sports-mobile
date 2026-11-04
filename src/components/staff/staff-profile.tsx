@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   avatarFallback: {
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

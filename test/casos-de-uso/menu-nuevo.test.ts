@@ -90,6 +90,10 @@ describe('lo que se manda al servidor', () => {
       address: 'Calle 1 #23',
       email: '',
       paymentMethod: 'efectivo',
+      clientRef: 'app-prueba-0001',
+      deliveryTermsAccepted: true,
+      adultConfirmed: false,
+      healthDataConsent: false,
     });
 
     const [vaso, conPapas, sencillo] = cuerpo(0).items;

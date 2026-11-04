@@ -227,7 +227,7 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
             </View>
           )}
           {table.toServe > 0 && (
-            <View style={[styles.badge, { backgroundColor: Brand.green }]} accessibilityLabel={`${table.toServe} por entregar`}>
+            <View style={[styles.badge, { backgroundColor: Brand.greenFill }]} accessibilityLabel={`${table.toServe} por entregar`}>
               <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={12} tintColor={Brand.white} />
               <Text style={styles.badgeText}>{table.toServe}</Text>
             </View>

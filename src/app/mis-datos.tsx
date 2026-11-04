@@ -1,11 +1,22 @@
 import { Redirect, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useState, type ReactNode } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Modal, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { deleteAccount, getAccount, togglePromoSubscription, updatePrivacy, updateProfile, type Privacy } from '@/api/account';
+import {
+  deleteAccount,
+  exportMyData,
+  getAccount,
+  togglePromoSubscription,
+  updatePrivacy,
+  updateProfile,
+  type Privacy,
+} from '@/api/account';
 import { ApiError, errorMessage } from '@/api/client';
+import { AvatarEditor } from '@/components/account/avatar-editor';
 import { PhoneChange } from '@/components/account/phone-change';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -146,6 +157,8 @@ export default function MyDataScreen() {
   const [toggling, setToggling] = useState(false);
   const [promoMessage, setPromoMessage] = useState<Message>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState<Message>(null);
 
   if (status === 'guest') return <Redirect href="/login" />;
   if (!user) return null;
@@ -161,35 +174,35 @@ export default function MyDataScreen() {
   const privacy = privacyOverride ?? data?.privacy ?? null;
   const promoSubscribed = privacy?.promoEmail ?? promoOverride ?? data?.promoSubscribed ?? false;
 
-  const download = () => {
-    const copy = {
-      generado: new Date().toISOString(),
-      responsable: 'La 501 Sports Restaurant',
-      titular: {
-        nombre: user.name,
-        correo: user.email,
-        telefono: data?.phone ?? null,
-        tipo_de_cuenta: ROLE_LABEL[user.role],
-        miembro_desde: data?.memberSince?.toISOString() ?? null,
-      },
-      actividad: {
-        puntos: data?.points ?? user.points,
-        logros: data?.achievements ?? 0,
-        reservaciones: data?.reservations ?? 0,
-        pedidos_recientes: (data?.recentOrders ?? []).map((order) => ({
-          folio: order.folio,
-          fecha: order.createdAt?.toISOString() ?? null,
-          total: order.total,
-          estado: order.status,
-        })),
-      },
-      preferencias: {
-        promociones_por_correo: promoSubscribed,
-        promociones_por_sms: privacy?.promoSms ?? false,
-        recomendaciones_segun_mis_pedidos: privacy?.personalizedRecommendations ?? true,
-      },
-    };
-    Share.share({ title: 'Mis datos — La 501 Sports', message: JSON.stringify(copy, null, 2) }).catch(() => {});
+  // Acceso: the COMPLETE copy, built by the server (only it has everything), saved as a
+  // .json file the person can keep in Files or Drive.
+  const download = async () => {
+    setDownloading(true);
+    setDownloadMessage(null);
+    try {
+      const copy = await exportMyData();
+      const json = JSON.stringify(copy, null, 2);
+      const fileName = `mis-datos-la501-${new Date().toISOString().slice(0, 10)}.json`;
+
+      if (Platform.OS !== 'web' && (await Sharing.isAvailableAsync())) {
+        const file = new File(Paths.cache, fileName);
+        if (file.exists) file.delete();
+        file.create();
+        file.write(json);
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Guardar mi copia de datos',
+          UTI: 'public.json',
+        });
+      } else {
+        await Share.share({ title: 'Mis datos — La 501 Sports', message: json });
+      }
+      setDownloadMessage({ type: 'success', text: 'Tu copia está lista. Guárdala en un lugar seguro: contiene tus datos personales.' });
+    } catch (err) {
+      setDownloadMessage({ type: 'error', text: errorMessage(err) });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const saveProfile = async () => {
@@ -256,6 +269,7 @@ export default function MyDataScreen() {
 
         {/* A — Acceso */}
         <RightCard letter="A" title="Acceso" description="Los datos personales que La 501 tiene de ti.">
+          <AvatarEditor />
           <View>
             <DataRow label="Nombre" value={user.name} />
             <DataRow label="Correo electrónico" value={user.email} />
@@ -263,6 +277,8 @@ export default function MyDataScreen() {
             <DataRow label="Tipo de cuenta" value={ROLE_LABEL[user.role]} />
             {!!data?.memberSince && <DataRow label="Miembro desde" value={longDate.format(data.memberSince)} />}
             {user.role === 'cliente' && <DataRow label="Puntos" value={String(data?.points ?? user.points)} />}
+            {!!data && <DataRow label="Logros" value={String(data.achievements)} />}
+            {!!data && <DataRow label="Reservaciones" value={String(data.reservations)} />}
             <DataRow label="Promociones por correo" value={promoSubscribed ? 'Sí, autorizadas' : 'No'} />
             {!!privacy && (
               <>
@@ -275,12 +291,13 @@ export default function MyDataScreen() {
             )}
           </View>
           <BrandButton
-            title="Descargar una copia"
+            title="Descargar una copia completa"
             variant="secondary"
             icon={{ ios: 'square.and.arrow.down', android: 'download', web: 'download' }}
             onPress={download}
-            disabled={!data}
+            loading={downloading}
           />
+          {!!downloadMessage && <FormMessage type={downloadMessage.type}>{downloadMessage.text}</FormMessage>}
         </RightCard>
 
         {/* R — Rectificación */}

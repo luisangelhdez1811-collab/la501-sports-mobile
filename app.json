@@ -16,7 +16,20 @@
       },
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
-      "package": "com.la501.sports"
+      "package": "com.la501.sports",
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "output": "static",
@@ -51,6 +64,15 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "extraProguardRules": "-keepattributes SourceFile,LineNumberTable\n-renamesourcefileattribute SourceFile"
           }
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La 501 Sports usa tus fotos solo si eliges una para tu foto de perfil.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ],

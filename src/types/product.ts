@@ -56,6 +56,8 @@ export type Product = {
   presentation: string;
   variants: Variant[];
   optionGroups: OptionGroup[];
+  /** Sent by the server once it marks drinks with alcohol; undefined = decide by category. */
+  alcoholic?: boolean;
 };
 
 export type Category = {

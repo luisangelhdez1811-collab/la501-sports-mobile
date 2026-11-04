@@ -469,7 +469,7 @@ export default function TableScreen() {
                 accessibilityState={{ disabled: orders.length === 0 }}
                 disabled={orders.length === 0}
                 onPress={() => setCharging({})}
-                style={({ pressed }) => [styles.send, { backgroundColor: Brand.green, opacity: orders.length === 0 ? 0.4 : pressed ? 0.85 : 1 }]}>
+                style={({ pressed }) => [styles.send, { backgroundColor: Brand.greenFill, opacity: orders.length === 0 ? 0.4 : pressed ? 0.85 : 1 }]}>
                 <SymbolView name={{ ios: 'creditcard', android: 'payments', web: 'payments' }} size={18} tintColor={Brand.white} />
                 <Text style={styles.sendText}>Cobrar mesa</Text>
               </Pressable>
@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 16,
     borderRadius: Radius.sm,
-    backgroundColor: Brand.green,
+    backgroundColor: Brand.greenFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
