@@ -132,12 +132,23 @@ El `.aab` no debe pedir cámara, micrófono, almacenamiento ni ubicación. En
   `READ_MEDIA_VISUAL_USER_SELECTED`, `ACCESS_FINE/COARSE_LOCATION`, `SYSTEM_ALERT_WINDOW`
   (solo lo usa el menú de desarrollo; la build de desarrollo lo conserva) y
   `RECEIVE_BOOT_COMPLETED` (la app no programa avisos a futuro).
+- También quita los que agregan las librerías y la app no usa: `USE_BIOMETRIC` y
+  `USE_FINGERPRINT` (`expo-secure-store`; la sesión no se protege con huella),
+  `com.google.android.c2dm.permission.RECEIVE` y `WAKE_LOCK` (Firebase push; los avisos son
+  locales), `BIND_GET_INSTALL_REFERRER_SERVICE` (`expo-application`), `ACCESS_WIFI_STATE`
+  y los permisos de contador en el ícono de cada fabricante (Samsung, Huawei, Sony, Oppo,
+  HTC…).
 - `expo-notifications` agrega `POST_NOTIFICATIONS`: Android 13+ pregunta al usuario. La app
   lo pide al confirmar un pedido (cliente) y al abrir las mesas (mesero).
 
-Permisos esperados en el `.aab`: `INTERNET`, `VIBRATE` y `POST_NOTIFICATIONS`.
-`npx expo config --type introspect` no muestra los que agregan las librerías al compilar;
-confírmalos en el Explorador de app bundle.
+Permisos que quedan (comprobado el 4 de noviembre de 2026 en la app instalada, con
+`adb shell dumpsys package com.la501.sports`): `INTERNET`, `ACCESS_NETWORK_STATE` (saber si
+hay conexión), `VIBRATE`, `POST_NOTIFICATIONS` y `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
+(interno de Android, no se le pide al usuario). La build de desarrollo además trae
+`SYSTEM_ALERT_WINDOW`, que la de producción no lleva.
+
+`npx expo config --type introspect` **no** muestra los permisos que agregan las librerías
+al compilar: revísalos siempre en la app instalada o en el Explorador de app bundle.
 
 ### Notificaciones
 
