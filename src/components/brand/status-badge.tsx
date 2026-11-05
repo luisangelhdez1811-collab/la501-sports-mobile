@@ -32,14 +32,17 @@ export function orderStatusLabel(status: OrderStatus) {
   return LABELS[status];
 }
 
-/** Outlined status pill, as in the design system ("PENDIENTE", "CONFIRMADA"…). */
-export function StatusBadge({ status }: { status: OrderStatus }) {
+/**
+ * Outlined status pill, as in the design system ("PENDIENTE", "CONFIRMADA"…). `label` is the
+ * server's text when it sends one, so the app and the website say the same.
+ */
+export function StatusBadge({ status, label }: { status: OrderStatus; label?: string }) {
   const { colors } = useBrandTheme();
   const color = COLORS[status] ?? colors.textSecondary;
 
   return (
     <View style={[styles.badge, { borderColor: color, backgroundColor: `${color}1A` }]}>
-      <Text style={[styles.text, { color: colors.text }]}>{LABELS[status]}</Text>
+      <Text style={[styles.text, { color: colors.text }]}>{label || LABELS[status]}</Text>
     </View>
   );
 }

@@ -79,7 +79,7 @@ export default function OrderTrackingScreen() {
                 <Text style={[styles.total, { color: colors.textSecondary }]}>{formatMoney(tracking.total)}</Text>
               )}
             </View>
-            <StatusBadge status={tracking.status} />
+            <StatusBadge status={tracking.status} label={tracking.statusLabel} />
           </View>
 
           {cardNotConfirmed && (

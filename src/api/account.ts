@@ -241,6 +241,8 @@ export type RefundStatus = 'refunded' | 'manual' | null;
 
 export type Tracking = {
   status: OrderStatus;
+  /** The server's text for the status ("Confirmado", never "Pagado"); '' if it doesn't send one. */
+  statusLabel: string;
   folio: string;
   total: number;
   /** null: older servers don't say it. */
@@ -258,6 +260,7 @@ function toTracking(raw: unknown): Tracking {
   const refund = asString(field('refund_status')).toLowerCase();
   return {
     status: toStatus(field('status')),
+    statusLabel: asString(field('status_label')).slice(0, 40),
     folio: asString(pick(order, 'folio', 'id')),
     total: asNumber(order.total),
     paymentMethod: method.startsWith('tarjeta') ? 'tarjeta' : method.startsWith('efectivo') ? 'efectivo' : null,
@@ -271,14 +274,26 @@ export async function trackOrder(token: string, signal?: AbortSignal): Promise<T
   return toTracking(await request<unknown>(`/app/orders/track/${token}`, { signal }));
 }
 
-/** The customer cancels before the kitchen starts; a card payment is returned. */
-export async function cancelOrder(token: string, reason = ''): Promise<Tracking> {
+export type CancelResult = { status: OrderStatus; refundStatus: RefundStatus; message: string };
+
+/**
+ * The customer cancels before the kitchen starts; a card payment is returned. The answer
+ * only says the new status, the refund and a message, not the whole order.
+ */
+export async function cancelOrder(token: string, reason = ''): Promise<CancelResult> {
   if (!toTrackingToken(token)) throw new Error('Invalid tracking token');
-  const data = await request<unknown>(`/app/orders/track/${token}/cancel`, {
-    method: 'POST',
-    body: reason.trim() ? { reason: reason.trim().slice(0, 200) } : {},
-  });
-  return toTracking(data);
+  const data = unwrap(
+    await request<unknown>(`/app/orders/track/${token}/cancel`, {
+      method: 'POST',
+      body: reason.trim() ? { reason: reason.trim().slice(0, 200) } : {},
+    }),
+  );
+  const refund = asString(data.refund_status).toLowerCase();
+  return {
+    status: toStatus(data.status),
+    refundStatus: refund === 'refunded' || refund === 'manual' ? refund : null,
+    message: asString(data.message).slice(0, 300),
+  };
 }
 
 /**

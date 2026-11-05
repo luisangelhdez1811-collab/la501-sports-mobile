@@ -137,14 +137,41 @@ describe('lo que se manda y se lee del servidor', () => {
   it('el seguimiento lee forma de pago, si se puede cancelar y la devolución', async () => {
     fetchMock.mockImplementation(async () =>
       respuesta(200, {
-        data: { status: 'cancelled', payment_method: 'tarjeta', can_cancel: false, refund_status: 'refunded', order: { id: 9, total: 250 } },
+        data: {
+          status: 'cancelled',
+          status_label: 'Cancelado',
+          payment_method: 'tarjeta',
+          can_cancel: false,
+          refund_status: 'refunded',
+          order: { id: 9, total: 250 },
+        },
       }),
     );
     const { trackOrder } = require('@/api/account') as typeof import('@/api/account');
 
     expect(await trackOrder('abc123')).toEqual(
-      expect.objectContaining({ status: 'cancelled', paymentMethod: 'tarjeta', canCancel: false, refundStatus: 'refunded', total: 250 }),
+      expect.objectContaining({
+        status: 'cancelled',
+        statusLabel: 'Cancelado',
+        paymentMethod: 'tarjeta',
+        canCancel: false,
+        refundStatus: 'refunded',
+        total: 250,
+      }),
     );
+  });
+
+  it('cancelar lee la respuesta corta del servidor: estado, devolución y mensaje', async () => {
+    fetchMock.mockImplementation(async () =>
+      respuesta(200, { success: true, status: 'cancelled', refund_status: 'manual', message: 'Te devolvemos el dinero.' }),
+    );
+    const { cancelOrder } = require('@/api/account') as typeof import('@/api/account');
+
+    expect(await cancelOrder('abc123')).toEqual({
+      status: 'cancelled',
+      refundStatus: 'manual',
+      message: 'Te devolvemos el dinero.',
+    });
   });
 
   it('la copia de datos sale del servidor; sin «titular» es un error, no un archivo vacío', async () => {

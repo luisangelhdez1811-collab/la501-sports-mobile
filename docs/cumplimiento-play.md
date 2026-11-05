@@ -4,7 +4,15 @@ Qué declarar en Play Console, cómo se genera el `.aab` y qué falta antes de p
 Actualiza este archivo cada vez que agregues un permiso, un SDK o un dato nuevo: lo que
 declares en Play Console debe coincidir con lo que hace la app y con el Aviso de Privacidad.
 
-Última revisión: 4 de noviembre de 2026.
+Última revisión: 5 de noviembre de 2026.
+
+**Estado de la web (5 nov 2026):** la rama `fix/cumplimiento-pagos-y-privacidad` de
+la501-sports-web ya trae B-01, B-03, B-06, B-10 a B-17, B-24, B-26, B-29, B-33 y `to_serve`
+para el mesero; las promociones ya mandan `end_date`. Todavía no está en `develop` ni en el
+servidor. En el API faltan B-25 y B-28 (`alcohol.legend`, `alcohol.sales_open`), las
+`conditions` de B-27, B-32 (`legal.*_version`, `legal_update_required`, `/accept-legal`),
+B-34 (`invoice`) y `payments.card_enabled`: ahí la app usa sus valores de respaldo. Los
+textos de B-18, B-21 y B-22 hay que compararlos a mano con la web.
 
 ## Estado de los cambios de la app (M-01 a M-26)
 

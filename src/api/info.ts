@@ -141,7 +141,8 @@ function toProvider(raw: unknown): Provider {
     address: text('address', DEFAULT_PROVIDER.address),
     phone: text('phone', DEFAULT_PROVIDER.phone),
     email: asEmail(obj.email) || DEFAULT_PROVIDER.email,
-    complaintsHours: text('complaints_hours', DEFAULT_PROVIDER.complaintsHours),
+    // The web sends complaint_hours; complaints_hours is the spelling of the first contract.
+    complaintsHours: asString(obj.complaint_hours) || text('complaints_hours', DEFAULT_PROVIDER.complaintsHours),
     rfc: asString(obj.rfc) || null,
   };
 }

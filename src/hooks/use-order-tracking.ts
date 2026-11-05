@@ -58,7 +58,17 @@ export function useOrderTracking(token: string) {
   const cancel = async () => {
     setCancelling(true);
     try {
-      setTracking(await cancelOrder(token));
+      const result = await cancelOrder(token);
+      // Keeps the folio, total and payment method already on screen.
+      setTracking((current) =>
+        current && {
+          ...current,
+          status: result.status,
+          statusLabel: '',
+          canCancel: false,
+          refundStatus: result.refundStatus,
+        },
+      );
       setError(null);
     } catch (err) {
       setError(errorMessage(err));

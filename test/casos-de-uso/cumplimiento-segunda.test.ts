@@ -89,7 +89,7 @@ describe('reglas de la tienda desde /public/info', () => {
       respuesta({
         data: {
           alcohol: { sales_open: false, closed_message: 'Ley seca hoy.', legend: 'Leyenda del servidor.' },
-          provider: { name: 'La 501', owner: 'Titular', phone: '771 000 0000', email: 'quejas@la501.mx', complaints_hours: '9 a 18', rfc: 'XAXX010101000' },
+          provider: { name: 'La 501', owner: 'Titular', phone: '771 000 0000', email: 'quejas@la501.mx', complaint_hours: '9 a 18', rfc: 'XAXX010101000' },
           legal: { terms_version: '2026-12', privacy_version: '2026-12', terms_url: 'http://inseguro.mx/terminos' },
           loyalty: { redeemable: true, rules_url: 'https://la501.mx/puntos' },
           invoice: { email: 'no-es-correo' },
