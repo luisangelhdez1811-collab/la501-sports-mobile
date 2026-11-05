@@ -17,6 +17,8 @@ type RequestOptions = {
   /** Send the bearer token if one is stored (guests still work without it). */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Longer than the default for uploads: a 2 MB photo on a slow network takes a while. */
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
@@ -136,7 +138,7 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
 }
 
 async function send<T>(path: string, options: RequestOptions, retried: boolean): Promise<T> {
-  const { method = 'GET', body, auth = false, signal } = options;
+  const { method = 'GET', body, auth = false, signal, timeoutMs = API_TIMEOUT_MS } = options;
   assertSafePath(path);
 
   try {
@@ -156,7 +158,7 @@ async function send<T>(path: string, options: RequestOptions, retried: boolean):
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener('abort', abortFromCaller);
 
@@ -171,6 +173,8 @@ async function send<T>(path: string, options: RequestOptions, retried: boolean):
     });
   } catch (err) {
     if (signal?.aborted) throw err;
+    // Development only: the real cause (timeout, TLS, refused) behind "No hay conexión".
+    if (__DEV__) console.warn(`[api] ${method} ${path} falló:`, err);
     throw new ApiError(recentPinningViolation() ? INSECURE_CONNECTION : NETWORK_ERROR, 0);
   } finally {
     clearTimeout(timeout);

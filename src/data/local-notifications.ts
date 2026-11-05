@@ -28,7 +28,7 @@ export function setupNotifications() {
       // Android 13+ only shows the permission prompt once a channel exists.
       await Notifications.setNotificationChannelAsync(CHANNEL, {
         name: 'Avisos de pedidos',
-        description: 'Cuando un pedido sale de cocina.',
+        description: 'Cuando un pedido está listo o va en camino.',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 150, 250],
       });

@@ -52,10 +52,8 @@ export default function RegisterScreen() {
     const outcome = await register();
     // Without an automatic session, send them to sign in with the new account.
     if (outcome === 'sign-in') router.replace('/login');
-    else if (outcome === 'signed-in') {
-      if (router.canGoBack()) router.back();
-      else router.replace('/');
-    }
+    // A new account starts on the menu (back would land on the sign-in screen).
+    else if (outcome === 'signed-in') router.dismissTo('/');
   };
 
   return (

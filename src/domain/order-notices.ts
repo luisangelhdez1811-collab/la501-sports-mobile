@@ -3,7 +3,7 @@ import type { OrderStatus } from '@/api/account';
 /**
  * When the app shows a notification (domain layer, pure functions): to the waiter, when the
  * kitchen or the bar finishes dishes of one of their tables; to the customer, when the order
- * leaves the kitchen ("va en camino"). Each change is announced once.
+ * is handed to the driver ("va en camino"). Each change is announced once.
  */
 
 export type Notice = { title: string; body: string; url: string };
@@ -31,19 +31,16 @@ export function readyNotices(previous: Map<number, number> | null, tables: Table
 
 export const toServeByTable = (tables: TableCount[]) => new Map(tables.map((t) => [t.id, t.toServe]));
 
-// Once the kitchen is done the order has left it, whether or not it's already with the driver.
-const LEFT_KITCHEN: OrderStatus[] = ['ready', 'delivering'];
-
 /**
  * What to tell the customer when the order reaches `status`: a single notice, "va en camino",
- * the first time it's seen out of the kitchen. `lastAnnounced` is the status that was
- * announced (null if none yet); nothing is announced twice.
+ * when it's handed to the driver ("Listo" still waits in the restaurant). `lastAnnounced` is
+ * the status that was announced (null if none yet); nothing is announced twice.
  */
 export function customerNotice(lastAnnounced: OrderStatus | null, status: OrderStatus, token: string): Notice | null {
-  if (lastAnnounced || !LEFT_KITCHEN.includes(status)) return null;
+  if (lastAnnounced || status !== 'delivering') return null;
   return {
     title: 'Tu pedido va en camino',
-    body: 'Ya salió de cocina. Toca para ver el seguimiento.',
+    body: 'Ya lo lleva el repartidor. Toca para ver el seguimiento.',
     url: `/pedido/${token}`,
   };
 }

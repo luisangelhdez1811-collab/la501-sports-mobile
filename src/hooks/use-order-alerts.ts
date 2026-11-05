@@ -61,8 +61,8 @@ export function useWaiterReadyAlerts() {
 }
 
 /**
- * Customer: follows the home-delivery orders placed from this phone and says once, when it
- * leaves the kitchen, that it's on the way. Signed in or not. Stops following once delivered or cancelled.
+ * Customer: follows the home-delivery orders placed from this phone and says once, when it's
+ * handed to the driver, that it's on the way. Signed in or not. Stops following once delivered or cancelled.
  */
 export function useCustomerOrderAlerts() {
   const offline = useIsOffline();

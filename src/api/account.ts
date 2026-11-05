@@ -363,6 +363,7 @@ export async function exportMyData(signal?: AbortSignal): Promise<Json> {
 
 const AVATAR_TYPES = /^image\/(jpeg|png|webp)$/;
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_UPLOAD_TIMEOUT_MS = 60_000;
 
 /** Changes the profile photo (the same one as on the website). Returns the new URL. */
 export async function uploadAvatar(file: { uri: string; mimeType?: string | null }): Promise<string | null> {
@@ -371,7 +372,12 @@ export async function uploadAvatar(file: { uri: string; mimeType?: string | null
   const form = new FormData();
   // React Native uploads the file from its uri in this shape.
   form.append('avatar', { uri: file.uri, name: `perfil.${extension}`, type } as unknown as Blob);
-  const data = unwrap(await request<unknown>('/app/account/avatar', { method: 'POST', auth: true, body: form }));
+  const data = unwrap(await request<unknown>('/app/account/avatar', {
+      method: 'POST',
+      auth: true,
+      body: form,
+      timeoutMs: AVATAR_UPLOAD_TIMEOUT_MS,
+    }));
   return asHttpsUrl(data.avatar);
 }
 

@@ -169,7 +169,7 @@ cerrada no llegan.
 - **Mesero** (solo con sesión de mesero): «Mesa 5: listo para entregar» cuando cocina o
   barra terminan algo de una de sus mesas.
 - **Cliente** (con cuenta o sin ella): un solo aviso, «Tu pedido va en camino», la primera
-  vez que el pedido aparece fuera de cocina (estado `ready` o `delivering`).
+  vez que el pedido se entrega al repartidor (estado `delivering`).
 
 Para avisos con la app cerrada hace falta push (Firebase Cloud Messaging
 y que el back mande el aviso), y entonces sí hay que declarar «ID del dispositivo».
