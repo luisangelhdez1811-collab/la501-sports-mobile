@@ -1,29 +1,20 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
-import type { OrderStatus, Tracking } from '@/api/account';
-import { formatMoney } from '@/domain/money';
+import type { Tracking } from '@/api/account';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormCard } from '@/components/brand/form-card';
 import { FormMessage } from '@/components/brand/form-message';
-import { StatusBadge } from '@/components/brand/status-badge';
-import { BrandTitle } from '@/components/brand/typography';
+import { TextLink } from '@/components/brand/text-link';
 import { ProviderCard } from '@/components/legal/provider-card';
+import { HoursNotice } from '@/components/order/hours-notice';
 import { InvoiceCard } from '@/components/order/invoice-card';
+import { OrderTicket } from '@/components/order/order-ticket';
 import { Brand, BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { FINAL_STATUSES, useOrderTracking } from '@/hooks/use-order-tracking';
 import { useStorePolicy } from '@/hooks/use-store-policy';
-
-const STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
-  { status: 'pending', label: 'Pendiente', emoji: '🧾' },
-  { status: 'paid', label: 'Confirmado', emoji: '✔️' },
-  { status: 'preparing', label: 'En preparación', emoji: '👨‍🍳' },
-  { status: 'ready', label: 'Listo', emoji: '🍔' },
-  { status: 'delivering', label: 'En camino', emoji: '🛵' },
-  { status: 'delivered', label: 'Entregado', emoji: '✅' },
-];
 
 const CARD_NOT_CONFIRMED =
   'Tu pago con tarjeta no se ha confirmado, así que tu pedido todavía no se envía a cocina. ' +
@@ -43,7 +34,7 @@ export default function OrderTrackingScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const { colors } = useBrandTheme();
   const policy = useStorePolicy();
-  const { tracking, error, cancelling, cancel: cancelOrder } = useOrderTracking(token);
+  const { tracking, error, cancelling, cancel: cancelOrder, print } = useOrderTracking(token);
 
   const cancel = () => {
     Alert.alert(
@@ -60,65 +51,32 @@ export default function OrderTrackingScreen() {
     );
   };
 
-  const currentIndex = tracking ? STEPS.findIndex((s) => s.status === tracking.status) : -1;
   const cardNotConfirmed =
     tracking?.paymentMethod === 'tarjeta' && (tracking.status === 'pending' || tracking.status === 'failed');
   const refund = tracking ? refundMessage(tracking) : null;
+  const waitingToStart = tracking?.status === 'pending' || tracking?.status === 'paid';
 
   return (
     <BrandScreen showBack>
-      <BrandTitle lead="Tu" accent="pedido" />
       {!!error && <FormMessage type="error">{error}</FormMessage>}
       {!tracking && !error && <ActivityIndicator color={Brand.orange} size="large" />}
       {tracking && (
         <FormCard>
-          <View style={styles.summary}>
-            <View>
-              {!!tracking.folio && <Text style={[styles.folio, { color: colors.text }]}>#{tracking.folio}</Text>}
-              {tracking.total > 0 && (
-                <Text style={[styles.total, { color: colors.textSecondary }]}>{formatMoney(tracking.total)}</Text>
-              )}
-            </View>
-            <StatusBadge status={tracking.status} label={tracking.statusLabel} />
-          </View>
-
           {cardNotConfirmed && (
             <FormMessage type={tracking.status === 'failed' ? 'error' : 'info'}>
               {tracking.status === 'failed' ? `Mercado Pago rechazó el pago. ${CARD_NOT_CONFIRMED}` : CARD_NOT_CONFIRMED}
             </FormMessage>
           )}
-
-          {tracking.status === 'cancelled' ? (
+          {tracking.status === 'cancelled' && (
             <>
               <FormMessage type="error">Este pedido fue cancelado.</FormMessage>
               {!!refund && <FormMessage type="info">{refund}</FormMessage>}
             </>
-          ) : (
-            <View style={styles.steps}>
-              {STEPS.map((step, index) => {
-                const done = index <= currentIndex;
-                return (
-                  <View key={step.status} style={styles.step}>
-                    <View
-                      style={[
-                        styles.dot,
-                        done ? { backgroundColor: Brand.orangeFill, borderColor: Brand.orange } : { borderColor: colors.border },
-                      ]}>
-                      <Text style={[styles.dotEmoji, !done && styles.dotPending]}>{step.emoji}</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.stepLabel,
-                        { color: done ? colors.text : colors.textSecondary },
-                        index === currentIndex && { color: colors.accent },
-                      ]}>
-                      {step.label}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
           )}
+
+          <OrderTicket tracking={tracking} />
+
+          {waitingToStart && <HoursNotice context="order" />}
 
           {tracking.canCancel && tracking.status !== 'cancelled' && (
             <BrandButton title="Cancelar pedido" variant="danger" onPress={cancel} loading={cancelling} />
@@ -131,6 +89,14 @@ export default function OrderTrackingScreen() {
             </Text>
           )}
 
+          <View style={styles.actions}>
+            <BrandButton title="Imprimir ticket" variant="secondary" onPress={print} style={styles.action} />
+            <BrandButton title="Volver al menú" onPress={() => router.navigate('/')} style={styles.action} />
+          </View>
+          <View style={styles.center}>
+            <TextLink label="Ver mis pedidos anteriores" onPress={() => router.navigate('/pedidos')} />
+          </View>
+
           {tracking.status === 'delivered' && !!tracking.folio && (
             <InvoiceCard folio={tracking.folio} instructions={policy.invoice.instructions} email={policy.invoice.email} />
           )}
@@ -142,46 +108,15 @@ export default function OrderTrackingScreen() {
 }
 
 const styles = StyleSheet.create({
-  summary: {
+  actions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 10,
+  },
+  action: {
+    flex: 1,
+  },
+  center: {
     alignItems: 'center',
-  },
-  folio: {
-    fontFamily: BrandFonts.bodyBold,
-    fontSize: 22,
-  },
-  total: {
-    fontFamily: BrandFonts.bodyMedium,
-    fontSize: 15,
-  },
-  steps: {
-    gap: 14,
-  },
-  step: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  dot: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotEmoji: {
-    fontSize: 20,
-  },
-  dotPending: {
-    opacity: 0.35,
-  },
-  stepLabel: {
-    fontFamily: BrandFonts.labelBold,
-    fontSize: 17,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
   hint: {
     fontFamily: BrandFonts.body,

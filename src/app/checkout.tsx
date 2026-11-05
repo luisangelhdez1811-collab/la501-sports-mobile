@@ -14,6 +14,7 @@ import { TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
 import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { ProviderCard } from '@/components/legal/provider-card';
+import { HoursNotice } from '@/components/order/hours-notice';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCheckout } from '@/hooks/use-checkout';
@@ -192,6 +193,9 @@ export default function CheckoutScreen() {
             </Text>
             <Text style={[styles.note, { color: colors.text }]}>{policy.feeNote}</Text>
           </View>
+
+          {/* The kitchen works only during opening hours: said before the customer confirms. */}
+          <HoursNotice context="checkout" />
 
           {checkout.withAlcohol && <AlcoholNotice legend={policy.alcohol.legend} />}
 

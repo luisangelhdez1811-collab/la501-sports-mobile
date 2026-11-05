@@ -103,3 +103,41 @@ export function isBookable(time: string, window: BookingWindow | null) {
   const minutes = parseSlot(time);
   return minutes >= window.from && minutes <= window.to;
 }
+
+/** "a la 1:00 PM" / "a las 2:00 PM": Spanish says "la" only for one o'clock. */
+function atTime(minutes: number) {
+  const hour12 = Math.floor((minutes % (24 * 60)) / 60) % 12 || 12;
+  return `${hour12 === 1 ? 'a la' : 'a las'} ${formatTime12(minutes)}`;
+}
+
+/** Open right now, counting a day that closes after midnight. */
+export function isOpenNow(week: WeekHours, now = new Date()) {
+  const minute = now.getHours() * 60 + now.getMinutes();
+  const today = week[now.getDay()];
+  if (today && minute >= today.open && minute < today.close) return true;
+  const yesterday = week[(now.getDay() + 6) % 7];
+  return !!yesterday && yesterday.close > 24 * 60 && minute < yesterday.close - 24 * 60;
+}
+
+/**
+ * When the restaurant opens again, in words: "hoy a la 1:00 PM", "mañana a las 2:00 PM",
+ * "el lunes a la 1:00 PM". null while it's open.
+ */
+export function nextOpening(week: WeekHours, now = new Date()): string | null {
+  if (isOpenNow(week, now)) return null;
+  const minute = now.getHours() * 60 + now.getMinutes();
+  const today = week[now.getDay()];
+  if (today && minute < today.open) return `hoy ${atTime(today.open)}`;
+  for (let ahead = 1; ahead <= 7; ahead++) {
+    const day = (now.getDay() + ahead) % 7;
+    const hours = week[day];
+    if (hours) return `${ahead === 1 ? 'mañana' : `el ${WEEKDAYS[day]}`} ${atTime(hours.open)}`;
+  }
+  return 'en cuanto volvamos a abrir';
+}
+
+/** Today's service hours in words: "hoy de 1:00 PM a 10:30 PM", or "hoy no abrimos". */
+export function todayHours(week: WeekHours, now = new Date()) {
+  const today = week[now.getDay()];
+  return today ? `hoy de ${formatTime12(today.open)} a ${formatTime12(today.close)}` : 'hoy no abrimos';
+}

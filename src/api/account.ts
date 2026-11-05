@@ -1,3 +1,5 @@
+import { optionsSummary, type TicketOption } from '@/domain/order-ticket';
+
 import { ApiError, request } from './client';
 import { asArray, asHttpsUrl, asNumber, asObject, asString, pick, unwrap, type Json } from './parse';
 
@@ -239,6 +241,20 @@ export async function getMyOrders(signal?: AbortSignal) {
 /** cancelled: whether the card payment was returned automatically or will be by hand. */
 export type RefundStatus = 'refunded' | 'manual' | null;
 
+/** One line of the ticket, as the kitchen got it. */
+export type TicketLine = {
+  name: string;
+  quantity: number;
+  subtotal: number;
+  /** "Salsa: BBQ · Término: Medio"; '' without options. */
+  options: string;
+  excluded: string[];
+  notes: string;
+};
+
+/** Who ordered and where it goes; '' when the server doesn't send it. */
+export type TicketCustomer = { name: string; phone: string; address: string };
+
 export type Tracking = {
   status: OrderStatus;
   /** The server's text for the status ("Confirmado", never "Pagado"); '' if it doesn't send one. */
@@ -250,7 +266,33 @@ export type Tracking = {
   /** The kitchen hasn't started: the customer can still cancel. */
   canCancel: boolean;
   refundStatus: RefundStatus;
+  isDelivery: boolean;
+  createdAt: Date | null;
+  lines: TicketLine[];
+  customer: TicketCustomer;
 };
+
+const toOption = (raw: unknown): TicketOption | null => {
+  const obj = asObject(raw);
+  const name = obj ? asString(obj.name) : '';
+  return obj && name ? { group: asString(obj.group), name, quantity: asNumber(obj.quantity) || 1 } : null;
+};
+
+function toTicketLine(raw: unknown): TicketLine | null {
+  const obj = asObject(raw);
+  if (!obj) return null;
+  const name = asString(pick(obj, 'product_name', 'name'));
+  if (!name) return null;
+  const quantity = asNumber(obj.quantity) || 1;
+  return {
+    name,
+    quantity,
+    subtotal: asNumber(obj.subtotal) || asNumber(obj.price) * quantity,
+    options: optionsSummary(asArray(obj.options).map(toOption).filter((o): o is TicketOption => o !== null)),
+    excluded: asArray(obj.excluded_ingredients).map((item) => asString(item)).filter(Boolean),
+    notes: asString(obj.notes),
+  };
+}
 
 function toTracking(raw: unknown): Tracking {
   const data = unwrap(raw);
@@ -266,6 +308,17 @@ function toTracking(raw: unknown): Tracking {
     paymentMethod: method.startsWith('tarjeta') ? 'tarjeta' : method.startsWith('efectivo') ? 'efectivo' : null,
     canCancel: field('can_cancel') === true,
     refundStatus: refund === 'refunded' || refund === 'manual' ? refund : null,
+    // The app only takes home-delivery orders: assumed when the server doesn't say.
+    isDelivery: field('es_a_domicilio') !== false,
+    createdAt: toDate(field('created_at')),
+    lines: asArray(field('items'))
+      .map(toTicketLine)
+      .filter((line): line is TicketLine => line !== null),
+    customer: {
+      name: asString(field('customer_name')),
+      phone: asString(field('customer_phone')),
+      address: asString(field('customer_address')),
+    },
   };
 }
 

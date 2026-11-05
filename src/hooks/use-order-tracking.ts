@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 
 import { cancelOrder, trackOrder, type OrderStatus, type Tracking } from '@/api/account';
 import { errorMessage } from '@/api/client';
+import { printTicket } from '@/data/ticket-print';
 import { useCart } from '@/hooks/use-cart';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 
 const POLL_MS = 10000;
 
@@ -14,7 +16,7 @@ const CONFIRMED: OrderStatus[] = ['paid', 'preparing', 'ready', 'delivering', 'd
 /**
  * Order tracking ViewModel: asks the server every few seconds until the order is delivered or
  * cancelled (and stops on leaving), lets the customer cancel while the kitchen hasn't started,
- * and lets a card order's cart go once its payment is confirmed.
+ * lets a card order's cart go once its payment is confirmed, and prints the ticket.
  */
 export function useOrderTracking(token: string) {
   const [tracking, setTracking] = useState<Tracking | null>(null);
@@ -22,6 +24,7 @@ export function useOrderTracking(token: string) {
   const [cancelling, setCancelling] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const { paymentConfirmed } = useCart();
+  const { provider } = useStorePolicy();
   const status = tracking?.status;
 
   // A card order keeps the cart until its payment is confirmed (then it can go).
@@ -79,5 +82,14 @@ export function useOrderTracking(token: string) {
     }
   };
 
-  return { tracking, error, cancelling, cancel };
+  const print = async () => {
+    if (!tracking) return;
+    try {
+      await printTicket(tracking, provider);
+    } catch {
+      setError('No se pudo abrir la impresión del ticket. Intenta de nuevo.');
+    }
+  };
+
+  return { tracking, error, cancelling, cancel, print };
 }

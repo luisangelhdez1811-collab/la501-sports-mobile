@@ -143,6 +143,18 @@ describe('lo que se manda y se lee del servidor', () => {
           payment_method: 'tarjeta',
           can_cancel: false,
           refund_status: 'refunded',
+          es_a_domicilio: true,
+          created_at: '2026-11-05T08:26:00-06:00',
+          items: [
+            {
+              product_name: 'Burrito Texano',
+              quantity: 1,
+              subtotal: 160,
+              options: [{ group: 'Salsa', name: 'BBQ', quantity: 1 }],
+              excluded_ingredients: ['Cebolla'],
+              notes: 'Sin picante',
+            },
+          ],
           order: { id: 9, total: 250 },
         },
       }),
@@ -157,6 +169,10 @@ describe('lo que se manda y se lee del servidor', () => {
         canCancel: false,
         refundStatus: 'refunded',
         total: 250,
+        isDelivery: true,
+        lines: [
+          { name: 'Burrito Texano', quantity: 1, subtotal: 160, options: 'Salsa: BBQ', excluded: ['Cebolla'], notes: 'Sin picante' },
+        ],
       }),
     );
   });
