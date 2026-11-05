@@ -127,7 +127,9 @@ export function useCheckout() {
     // Card: the cart stays until tracking sees the payment confirmed, so a rejected or
     // abandoned payment can be retried with the same reference (no second order).
     cart.holdForPayment(result.trackingToken);
-    if (result.checkoutUrl && !result.duplicate) {
+    // A retry of the same order (duplicate) still comes with a link while it's unpaid: the
+    // server only sends one then, and it's for that same order.
+    if (result.checkoutUrl) {
       // The bank's page opens in the system browser (Chrome Custom Tabs / Safari), never a
       // WebView: the customer sees the real address and the app can't read card data.
       await WebBrowser.openBrowserAsync(result.checkoutUrl, { dismissButtonStyle: 'close', showTitle: true });
