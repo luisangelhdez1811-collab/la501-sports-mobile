@@ -39,7 +39,7 @@ import {
   unitPrice,
   type Selection,
 } from '@/domain/menu-options';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type ProductDetailSheetProps = {
   product: Product | null;
@@ -257,7 +257,7 @@ export function ProductDetailSheet({
                     source={menuImage(product.image)}
                     style={StyleSheet.absoluteFill}
                     contentFit="cover"
-                    transition={200}
+                    transition={menuImageTransition(product.image)}
                     accessibilityIgnoresInvertColors
                   />
                 ) : (

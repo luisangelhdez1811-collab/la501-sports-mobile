@@ -6,7 +6,7 @@ import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import type { Product } from '@/types/product';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type ProductCardProps = {
   product: Product;
@@ -36,7 +36,7 @@ export function ProductCard({ product, width, onPress, actionLabel = 'Ver detall
             source={menuImage(product.image)}
             style={styles.image}
             contentFit="cover"
-            transition={200}
+            transition={menuImageTransition(product.image)}
             cachePolicy="memory-disk"
             accessibilityIgnoresInvertColors
           />

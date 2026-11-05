@@ -15,3 +15,11 @@ export function menuImage(url: string | null): ImageSource | number | null {
 export function isBundledImage(url: string) {
   return url in SNAPSHOT_IMAGES;
 }
+
+/**
+ * Fade-in for a dish photo: only while one downloads. A photo bundled in the app shows at
+ * once, so cards don't flicker in one by one while scrolling the menu.
+ */
+export function menuImageTransition(url: string | null) {
+  return url && isBundledImage(url) ? 0 : 200;
+}

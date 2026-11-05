@@ -37,7 +37,7 @@ import type { DishChoice } from '@/domain/waiter-order';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useProductDetail } from '@/hooks/use-product-detail';
 import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 export type { DishChoice } from '@/domain/waiter-order';
 
@@ -232,7 +232,7 @@ export function CustomizeSheet({
                   source={menuImage(product.image)}
                   style={styles.thumb}
                   contentFit="cover"
-                  transition={200}
+                  transition={menuImageTransition(product.image)}
                   accessibilityIgnoresInvertColors
                 />
               ) : (

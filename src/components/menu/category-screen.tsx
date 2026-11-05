@@ -16,7 +16,7 @@ import { AppHeader } from '@/components/brand/app-header';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { CategoryCard } from '@/components/menu/category-card';
-import { GRID_GAP, GRID_GUTTER, gridCardWidth } from '@/components/menu/grid';
+import { GRID_GAP, GRID_GUTTER, gridCardWidth, MENU_GRID_WINDOW } from '@/components/menu/grid';
 import { MenuStatus } from '@/components/menu/menu-status';
 import { ProductCard } from '@/components/menu/product-card';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
@@ -30,7 +30,7 @@ import { useCategorySubgroups } from '@/hooks/use-product-detail';
 import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Category, Product } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type Row = { type: 'subcategory'; group: Category } | { type: 'product'; product: Product };
 
@@ -81,6 +81,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
         keyExtractor={(row) => (row.type === 'subcategory' ? `sub-${row.group.name}` : row.product.key)}
         numColumns={2}
         columnWrapperStyle={styles.row}
+        {...MENU_GRID_WINDOW}
         contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + 24 + cartInset }]}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -103,7 +104,12 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
 
             <View style={styles.banner}>
               {image ? (
-                <Image source={menuImage(image)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                <Image
+                  source={menuImage(image)}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={menuImageTransition(image)}
+                />
               ) : (
                 <ImagePlaceholder style={StyleSheet.absoluteFill} />
               )}
