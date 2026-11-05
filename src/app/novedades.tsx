@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { getNews } from '@/api/catalog';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { OfflineBanner } from '@/components/brand/offline-banner';
@@ -9,7 +8,7 @@ import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { PageHero } from '@/components/brand/page-hero';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
+import { useNews } from '@/hooks/use-content';
 import type { NewsItem } from '@/types/product';
 
 const dateFormat = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -24,7 +23,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         <ImagePlaceholder style={styles.image} />
       )}
       <View style={styles.cardBody}>
-        {item.date && <Text style={styles.date}>{dateFormat.format(item.date)}</Text>}
+        {item.date && <Text style={[styles.date, { color: colors.accent }]}>{dateFormat.format(item.date)}</Text>}
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={3}>
           {item.title}
         </Text>
@@ -40,10 +39,7 @@ function NewsCard({ item }: { item: NewsItem }) {
 
 export default function NewsScreen() {
   const { colors } = useBrandTheme();
-  const { data: news, error, refreshing, stale, reload, refresh } = useCachedResource<NewsItem[]>(
-    'news',
-    getNews,
-  );
+  const { data: news, error, refreshing, stale, reload, refresh } = useNews();
 
   return (
     <BrandScreen showBack refreshing={refreshing} onRefresh={refresh} contentStyle={styles.content}>
@@ -120,7 +116,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   date: {
-    color: Brand.orange,
     fontFamily: BrandFonts.label,
     fontSize: 12,
     letterSpacing: 1.5,

@@ -1,8 +1,57 @@
-import type { Category, Ingredient, NewsItem, Product, Promotion } from '@/types/product';
+import { sectionFor } from '@/domain/menu-layout';
+import { isPromotionActive } from '@/domain/promotions';
+import type {
+  Category,
+  Ingredient,
+  MenuOption,
+  NewsItem,
+  OptionGroup,
+  Product,
+  Promotion,
+  Station,
+  Variant,
+} from '@/types/product';
 import { sizedImageUrl } from '@/utils/image-url';
 
 import { ApiError, request } from './client';
 import { asArray, asHttpsUrl, asId, asNumber, asObject, asString, pick, unwrap } from './parse';
+
+const STATIONS: Station[] = ['cocina', 'barra', 'ninguna'];
+
+function toVariant(raw: unknown): Variant | null {
+  const obj = asObject(raw);
+  const id = obj ? asId(obj.id) : null;
+  const name = asString(obj?.name);
+  return obj && id !== null && name ? { id, name, price: asNumber(obj.price) } : null;
+}
+
+function toOption(raw: unknown): MenuOption | null {
+  const obj = asObject(raw);
+  const id = obj ? asId(obj.id) : null;
+  const name = asString(obj?.name);
+  return obj && id !== null && name ? { id, name, detail: asString(obj.detail), price: asNumber(obj.price) } : null;
+}
+
+function toOptionGroup(raw: unknown): OptionGroup | null {
+  const obj = asObject(raw);
+  const id = obj ? asId(obj.id) : null;
+  if (!obj || id === null) return null;
+  const options = asArray(obj.options)
+    .map(toOption)
+    .filter((o): o is MenuOption => o !== null);
+  // Every option sold out: nothing to pick, so it can't block the order either.
+  if (options.length === 0) return null;
+  const name = asString(obj.name);
+  return {
+    id,
+    name,
+    label: asString(obj.label) || name,
+    min: Math.max(0, asNumber(obj.min)),
+    max: Math.max(0, asNumber(obj.max)),
+    maxPerOption: Math.max(1, asNumber(obj.max_per_option)),
+    options,
+  };
+}
 
 function toItem(raw: unknown, index: number, kind: Product['kind']): Product | null {
   const item = asObject(raw);
@@ -13,7 +62,11 @@ function toItem(raw: unknown, index: number, kind: Product['kind']): Product | n
   const id = asId(item.id);
   const image = asHttpsUrl(pick(item, 'image', 'image_url', 'imagen'));
   const rawCategory = item.category;
-  const category = asObject(rawCategory) ? asString(asObject(rawCategory)!.name) : asString(rawCategory);
+  const category =
+    (asObject(rawCategory) ? asString(asObject(rawCategory)!.name) : asString(rawCategory)) ||
+    (kind === 'promotion' ? 'Promociones' : 'Otros');
+  const section = asString(item.section);
+  const station = asString(item.station) as Station;
 
   return {
     key: id !== null ? `${kind}-${id}` : `${kind}-${name}-${index}`,
@@ -24,9 +77,20 @@ function toItem(raw: unknown, index: number, kind: Product['kind']): Product | n
     image: image ? sizedImageUrl(image) : null,
     price: asNumber(pick(item, 'price', 'precio')),
     currency: asString(item.currency, 'MXN') || 'MXN',
-    category: category || (kind === 'promotion' ? 'Promociones' : 'Otros'),
+    category,
     subcategory: asString(pick(item, 'subcategory', 'subcategoria')),
     available: item.available !== false && item.active !== false,
+    // Servers from before the new menu send none of these: fall back to the category.
+    section: section === 'comidas' || section === 'bebidas' ? section : sectionFor(category),
+    station: STATIONS.includes(station) ? station : 'cocina',
+    presentation: asString(item.presentation),
+    variants: asArray(item.variants)
+      .map(toVariant)
+      .filter((v): v is Variant => v !== null),
+    optionGroups: asArray(item.option_groups)
+      .map(toOptionGroup)
+      .filter((g): g is OptionGroup => g !== null),
+    ...(typeof item.alcoholic === 'boolean' ? { alcoholic: item.alcoholic } : {}),
   };
 }
 
@@ -110,27 +174,47 @@ export type MenuResult = {
   retryAfter: number | null;
 };
 
+// The new menu's server sends the whole menu in one call (default 200, max 300), already in
+// the menu's order. Older servers cap the list at 100 and answer 422 to a bigger limit.
+const FULL_MENU_LIMIT = 300;
+
+/** Groups products by category, keeping the order they arrive in. */
+export function groupByCategory(products: Product[]): Category[] {
+  const groups = new Map<string, Product[]>();
+  for (const product of products) groups.set(product.category, [...(groups.get(product.category) ?? []), product]);
+  return [...groups.entries()].map(([name, list]) => ({ name, products: list }));
+}
+
+/** The whole menu in one request, or null when the server is from before the new menu. */
+async function getFullMenu(signal?: AbortSignal): Promise<Category[] | null> {
+  let data: unknown;
+  try {
+    data = await request<unknown>(`/public/products?limit=${FULL_MENU_LIMIT}`, { signal });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 422) return null;
+    throw err;
+  }
+  const raw = asArray(data);
+  // Without `section` it's the old alphabetical list; at the limit it may be cut short.
+  if (!raw.some((item) => asObject(item)?.section) || raw.length >= FULL_MENU_LIMIT) return null;
+  return groupByCategory(toProducts(raw));
+}
+
 /**
- * Full menu grouped by category, in the order the categories endpoint returns.
- * `previous` (the last good menu) fills in any category that still fails after the
- * retry; anything still missing is reported instead of silently dropped.
+ * Full menu grouped by category. From the new menu's server: one call, in the menu's order.
+ * From older servers: one call per category, in the order the categories endpoint returns;
+ * `previous` (the last good menu) fills in any category that still fails after the retry,
+ * and anything still missing is reported instead of silently dropped.
  */
 export async function getMenu(signal?: AbortSignal, previous: Category[] = []): Promise<MenuResult> {
+  const full = await getFullMenu(signal);
+  if (full && full.length > 0) return { categories: full, missing: [], retryAfter: null };
+
   const order = await getCategoryOrder(signal).catch(() => [] as string[]);
 
   // Without categories, fall back to the (capped) general list grouped client-side.
   if (order.length === 0) {
-    const groups = new Map<string, Product[]>();
-    for (const product of await getProducts(signal)) {
-      const list = groups.get(product.category) ?? [];
-      list.push(product);
-      groups.set(product.category, list);
-    }
-    return {
-      categories: [...groups.entries()].map(([name, products]) => ({ name, products })),
-      missing: [],
-      retryAfter: null,
-    };
+    return { categories: groupByCategory(await getProducts(signal)), missing: [], retryAfter: null };
   }
 
   const results = await mapLimited(order, MAX_PARALLEL, (name) => getCategoryProducts(name, signal));
@@ -209,26 +293,24 @@ export async function getRecommendations(cartIds: number[], signal?: AbortSignal
   return { personalized: body.strategy === 'user_history', products: toProducts(body.products ?? body) };
 }
 
-const shortDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
-
-// Current API shape: { title, description, image, active, end_date }. The optional
-// fields (badge, price label…) are read if the backend adds them later.
+// Current API shape: { title, description, image, active, end_date }; the contract adds
+// ends_at (ISO date), conditions and alcoholic (B-27). The other optional fields (badge,
+// price label…) are read if the backend adds them.
 function toPromotion(raw: unknown, index: number): Promotion | null {
   const base = toItem(raw, index, 'promotion');
   const obj = asObject(raw);
   if (!base || !obj) return null;
   const priceLabel = asString(pick(obj, 'price_label', 'price_text', 'promo_price'));
-  const endDate = new Date(asString(obj.end_date));
-  const availability =
-    asString(pick(obj, 'availability', 'available_days')) ||
-    (Number.isNaN(endDate.getTime()) ? '' : `Hasta el ${shortDate.format(endDate)}`);
+  const endsAt = new Date(asString(pick(obj, 'ends_at', 'end_date')));
   return {
     ...base,
     badge: asString(pick(obj, 'badge', 'tag')) || null,
     // Never invent a price: without one, the card just shows the description.
     priceLabel: priceLabel || (base.price > 0 ? `$${base.price.toFixed(2)}` : ''),
-    availability: availability || null,
+    availability: asString(pick(obj, 'availability', 'available_days')) || null,
     storeOnly: Boolean(pick(obj, 'store_only', 'in_store_only')),
+    endsAt: Number.isNaN(endsAt.getTime()) ? null : endsAt,
+    conditions: asString(pick(obj, 'conditions', 'condiciones')).slice(0, 2000),
   };
 }
 
@@ -236,7 +318,7 @@ export async function getPromotions(signal?: AbortSignal): Promise<Promotion[]> 
   const data = await request<unknown>('/public/promotions', { signal });
   return asArray(data)
     .map(toPromotion)
-    .filter((p): p is Promotion => p !== null && p.available);
+    .filter((p): p is Promotion => p !== null && p.available && isPromotionActive(p));
 }
 
 export async function getNews(signal?: AbortSignal): Promise<NewsItem[]> {

@@ -27,7 +27,7 @@ export function Checkbox({ checked, onChange, children, accessibilityLabel }: Ch
         style={[
           styles.box,
           checked
-            ? { backgroundColor: Brand.orange, borderColor: Brand.orange }
+            ? { backgroundColor: Brand.orangeFill, borderColor: Brand.orange }
             : { borderColor: colors.border, backgroundColor: colors.background },
         ]}>
         {checked && (

@@ -2,22 +2,20 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewProps } from 'react-native-webview';
 
-import { DEFAULT_ADDRESS, DEFAULT_MAP_QUERY, getRestaurantInfo } from '@/api/info';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { PageHero } from '@/components/brand/page-hero';
 import { ScheduleCard } from '@/components/info/schedule-card';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
+import { useRestaurantInfo } from '@/hooks/use-restaurant';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { DEFAULT_HOURS } from '@/utils/opening-hours';
 
 const MAP_HEIGHT = 300;
 
 // Opens the phone's maps app (Apple Maps on iOS, Google Maps on Android).
 function mapsUrl(query: string, directions: boolean) {
   const q = encodeURIComponent(query);
-  if (Platform.OS === 'ios') return directions ? `http://maps.apple.com/?daddr=${q}` : `http://maps.apple.com/?q=${q}`;
+  if (Platform.OS === 'ios') return directions ? `https://maps.apple.com/?daddr=${q}` : `https://maps.apple.com/?q=${q}`;
   return directions
     ? `https://www.google.com/maps/dir/?api=1&destination=${q}`
     : `https://www.google.com/maps/search/?api=1&query=${q}`;
@@ -42,7 +40,7 @@ function ActionButton({
       style={({ pressed }) => [
         styles.action,
         filled
-          ? { backgroundColor: pressed ? Brand.orangeDark : Brand.orange, borderColor: Brand.orange }
+          ? { backgroundColor: pressed ? Brand.orangeFillPressed : Brand.orangeFill, borderColor: Brand.orange }
           : { backgroundColor: pressed ? colors.border : colors.background, borderColor: colors.border },
       ]}>
       <SymbolView name={icon} size={18} tintColor={filled ? Brand.white : Brand.orange} />
@@ -56,12 +54,11 @@ export default function LocationScreen() {
   const { colors } = useBrandTheme();
   const offline = useIsOffline();
   // Saved on the device: address and hours show even without internet.
-  const { data: info } = useCachedResource('restaurant-info', getRestaurantInfo, { persist: true });
+  const info = useRestaurantInfo();
 
-  const address = info?.address || DEFAULT_ADDRESS;
-  const query = info?.mapQuery || DEFAULT_MAP_QUERY;
+  const { address, mapQuery: query } = info;
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
-  // "Av. Deportiva #501, Col. Centro, CP 43000, …" → street as the title, the rest below.
+  // "Plaza de la Revolución Mexicana #16, Col. Centro, …" → street as the title, the rest below.
   const [street, ...rest] = address.split(',').map((part) => part.trim());
   const open = (directions: boolean) => Linking.openURL(mapsUrl(query, directions)).catch(() => {});
 
@@ -80,7 +77,7 @@ export default function LocationScreen() {
         tag="La 501 Sports Restaurant"
         lead="Encuéntranos"
         accent="aquí"
-        description="Ven a visitarnos y disfruta de la mejor experiencia deportiva y gastronómica de la ciudad."
+        description="Ven a visitarnos a disfrutar del deporte y la buena comida."
       />
 
       <View style={styles.body}>
@@ -120,7 +117,7 @@ export default function LocationScreen() {
             </View>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Dirección</Text>
           </View>
-          <Text style={styles.street} selectable>
+          <Text style={[styles.street, { color: colors.accent }]} selectable>
             {street}
           </Text>
           {rest.map((line) => (
@@ -139,7 +136,7 @@ export default function LocationScreen() {
           </View>
         </View>
 
-        <ScheduleCard hours={info?.hours ?? DEFAULT_HOURS} showIcon />
+        <ScheduleCard hours={info.hours} showIcon />
       </View>
     </BrandScreen>
   );
@@ -220,7 +217,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   street: {
-    color: Brand.orange,
     fontFamily: BrandFonts.display,
     fontSize: 32,
     letterSpacing: 1,

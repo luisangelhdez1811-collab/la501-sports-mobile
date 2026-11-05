@@ -2,10 +2,12 @@ import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { linePrice } from '@/domain/cart';
+import { displayName, EMPTY_SELECTION, optionsSummary } from '@/domain/menu-options';
 import { useCart, type CartItem } from '@/hooks/use-cart';
 import { menuImage } from '@/utils/image-source';
 
@@ -20,7 +22,7 @@ function StepButton({ symbol, label, filled, onPress }: { symbol: '−' | '+'; l
       style={({ pressed }) => [
         styles.step,
         filled
-          ? { backgroundColor: pressed ? Brand.greenDark : Brand.green }
+          ? { backgroundColor: pressed ? Brand.greenFillPressed : Brand.greenFill }
           : { backgroundColor: pressed ? `${Brand.red}33` : `${Brand.red}1A`, borderColor: `${Brand.red}55`, borderWidth: 1 },
       ]}>
       <Text style={[styles.stepText, { color: filled ? Brand.white : colors.text }]}>{symbol}</Text>
@@ -33,6 +35,10 @@ export function CartLine({ item }: { item: CartItem }) {
   const { colors } = useBrandTheme();
   const cart = useCart();
   const { product } = item;
+  const selection = item.selection ?? EMPTY_SELECTION;
+  const name = displayName(product, selection);
+  const summary = optionsSummary(product, selection);
+  const price = linePrice(item);
 
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
@@ -44,14 +50,19 @@ export function CartLine({ item }: { item: CartItem }) {
 
       <View style={styles.info}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-          {product.name}
+          {name}
         </Text>
         <Text style={[styles.unit, { color: colors.textSecondary }]}>
           {/* Offers like "2x$150" have no plain amount; the server prices them at checkout. */}
-          {product.price > 0 || !product.priceLabel ? `${formatMoney(product.price)} c/u` : `Promoción ${product.priceLabel}`}
+          {price > 0 || !product.priceLabel ? `${formatMoney(price)} c/u` : `Promoción ${product.priceLabel}`}
         </Text>
+        {!!summary && (
+          <Text style={[styles.detail, { color: colors.accent }]} numberOfLines={3}>
+            {summary}
+          </Text>
+        )}
         {item.excluded.length > 0 && (
-          <Text style={[styles.detail, { color: Brand.red }]} numberOfLines={2}>
+          <Text style={[styles.detail, { color: colors.danger }]} numberOfLines={2}>
             Sin {item.excluded.map((i) => i.name.toLowerCase()).join(', ')}
           </Text>
         )}
@@ -69,7 +80,7 @@ export function CartLine({ item }: { item: CartItem }) {
           <StepButton symbol="+" filled label={`Agregar otro ${product.name}`} onPress={() => cart.increment(item.lineId)} />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Eliminar ${product.name}`}
+            accessibilityLabel={`Eliminar ${name}`}
             onPress={() => cart.remove(item.lineId)}
             hitSlop={6}
             style={[styles.trash, { borderColor: colors.border }]}>

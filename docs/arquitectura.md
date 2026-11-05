@@ -11,7 +11,7 @@ flowchart TD
         C["src/components<br/>componentes visuales"]
     end
     subgraph VM["ViewModel"]
-        H["src/hooks<br/>useCart, useMenu, useAuth, useCachedResource"]
+        H["src/hooks<br/>useCart, useCheckout, useTableOrder, useMyData…"]
     end
     subgraph Modelo["Modelo"]
         D["src/data<br/>repositorios: menú, detalles, cola de pedidos"]
@@ -25,14 +25,46 @@ flowchart TD
 
 | Capa | Carpeta | Responsabilidad | No puede importar |
 |---|---|---|---|
-| Vista | `src/app`, `src/components` | Dibujar y reaccionar al usuario | `src/app` desde componentes |
+| Vista | `src/app`, `src/components` | Dibujar y reaccionar al usuario | `src/api` y `src/data` (solo por un hook); `src/app` desde componentes |
 | ViewModel | `src/hooks` | Estado de pantalla: cargar, guardar, sin conexión | Vista |
 | Datos (repositorios) | `src/data` | De dónde salen los datos: memoria, teléfono o servidor | Vista, ViewModel |
 | API | `src/api` | HTTP, sesión, convertir JSON en modelos | Vista, ViewModel, Datos |
-| Dominio | `src/domain` | Reglas del negocio: carrito, cuentas, mesas, búsqueda | React, Expo, red y cualquier otra capa |
+| Dominio | `src/domain` | Reglas del negocio: carrito, checkout, promociones, pedido de la mesa, cuentas, dinero | React, Expo, red y cualquier otra capa |
+| Utilidades | `src/utils` | Funciones puras que usa cualquier capa: validación, horarios, URL de imágenes | Igual que el dominio (el almacenamiento va en `src/data`) |
 
 Los imports de **solo tipos** (`import type`) se permiten entre capas porque desaparecen al
 compilar.
+
+### Pantallas y ViewModels
+
+Una pantalla solo dibuja. Cuando tiene un formulario, varios pasos o decide qué hacer con
+los errores del servidor, esa lógica vive en un hook de `src/hooks`, y la pantalla recibe
+el estado y las acciones:
+
+| Pantalla | ViewModel | Lo que hace el hook |
+|---|---|---|
+| Checkout | `useCheckout` | Formulario, confirmaciones legales, folio, reintentos (`duplicate_reference`, `legal_update_required`) y pago con tarjeta |
+| Seguimiento del pedido | `useOrderTracking` | Consulta cada 10 s hasta entregado o cancelado, cancelación, libera el carrito al confirmarse el pago |
+| Mis datos (ARCO) | `useMyData` | Acceso, rectificación, oposición y copia de datos |
+| Mesa (mesero) | `useTableOrder` | Pedido del comensal, envío a cocina o a la cola sin conexión, «Entregado» |
+| Cobro de una cuenta | `useBillPayment` | Pagos, cambio, cobro forzado y folio contra cobros dobles |
+| Aceptar textos legales | `useLegalUpdate` | Pide aceptar versiones nuevas del Aviso y los Términos |
+| Reglas de la tienda | `useStorePolicy` | Leyenda y venta de alcohol, proveedor, puntos y factura desde `/public/info` |
+
+**Ninguna pantalla ni componente importa `src/api` o `src/data`** (solo sus tipos, con
+`import type`): el lint falla si lo hacen. Todo pasa por un hook:
+
+| Hooks | Para qué |
+|---|---|
+| `useAccount`, `usePhoneChange`, `useAvatar`, `useDeleteAccount`, `useChangePassword` | Cuenta del cliente |
+| `useLoginForm`, `useRegisterForm`, `usePasswordRecovery` | Sesión |
+| `useMyOrders`, `useGuestOrderLookup` | Mis pedidos (con cuenta o con código por SMS) |
+| `usePromotions`, `useNews`, `useRecommendations`, `useNewsletter` | Contenido del restaurante |
+| `useRestaurantInfo`, `useReservationForm` | Horario, ubicación y reservaciones |
+| `useProductDetail`, `useCategorySubgroups` | Ficha del platillo y subcategorías |
+| `useTablesMap`, `useOpenOrders`, `useOutboxSync`, `useMyOutbox` | Mesero: mapa, cuentas y pedidos sin conexión |
+| `useSalesSummary`, `useEarnings`, `useMessages`, `useReservations`… | Panel del administrador |
+| `useNotificationTaps`, `useWaiterReadyAlerts`, `useCustomerOrderAlerts` | Notificaciones en el teléfono |
 
 ## Patrones de diseño
 

@@ -17,8 +17,8 @@ type BrandButtonProps = {
 };
 
 const FILL: Record<'primary' | 'action', { idle: string; pressed: string }> = {
-  primary: { idle: Brand.orange, pressed: Brand.orangeDark },
-  action: { idle: Brand.green, pressed: Brand.greenDark },
+  primary: { idle: Brand.orangeFill, pressed: Brand.orangeFillPressed },
+  action: { idle: Brand.greenFill, pressed: Brand.greenFillPressed },
 };
 
 /** Primary (orange), action (green), secondary (outlined) and danger buttons. */
@@ -34,7 +34,7 @@ export function BrandButton({
   const { colors } = useBrandTheme();
   const inactive = disabled || loading;
   const filled = variant === 'primary' || variant === 'action';
-  const textColor = filled ? Brand.white : variant === 'danger' ? Brand.red : colors.text;
+  const textColor = filled ? Brand.white : variant === 'danger' ? colors.danger : colors.text;
 
   return (
     <Pressable

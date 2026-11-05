@@ -1,6 +1,8 @@
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/config/api';
+import { formatWait } from '@/utils/format-wait';
 
-import { clearToken, getToken } from './token-storage';
+import { ensureSslPinning, recentPinningViolation } from './ssl-pinning';
+import { clearToken, getRefreshToken, getToken, readTokens, replaceSession } from './token-storage';
 
 if (!API_BASE_URL.startsWith('https://')) {
   // Tokens and customer data must never travel over plain HTTP.
@@ -15,6 +17,8 @@ type RequestOptions = {
   /** Send the bearer token if one is stored (guests still work without it). */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Longer than the default for uploads: a 2 MB photo on a slow network takes a while. */
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
@@ -35,6 +39,8 @@ export class ApiError extends Error {
 
 const GENERIC_ERROR = 'Ocurrió un problema. Intenta de nuevo en unos momentos.';
 const NETWORK_ERROR = 'No hay conexión con el servidor. Revisa tu internet.';
+const INSECURE_CONNECTION =
+  'No se pudo verificar que la conexión con el servidor sea segura. Revisa tu red (evita redes públicas) e intenta de nuevo.';
 
 type SessionListener = () => void;
 const sessionExpiredListeners = new Set<SessionListener>();
@@ -56,12 +62,6 @@ function assertSafePath(path: string) {
 }
 
 /** "45 segundos" / "8 minutos". */
-export function formatWait(seconds: number) {
-  if (seconds < 60) return `${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
-  const minutes = Math.ceil(seconds / 60);
-  return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
-}
-
 // Verification-code errors get fixed wording, the same on every screen.
 function codeMessage(code: string | null, retryAfter: number | null): string | null {
   if (code === 'too_many_attempts') {
@@ -100,12 +100,57 @@ function userMessage(status: number, data: unknown, retryAfter: number | null, c
   return GENERIC_ERROR;
 }
 
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = false, signal } = options;
+type RefreshOutcome = 'renewed' | 'expired' | 'offline';
+let refreshing: Promise<RefreshOutcome> | null = null;
+
+/**
+ * Exchanges the refresh token for a new access token. Requests that get a 401 at the
+ * same time share one exchange: the refresh token can only be used once.
+ */
+function refreshSession(): Promise<RefreshOutcome> {
+  refreshing ??= (async (): Promise<RefreshOutcome> => {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) return 'expired';
+    try {
+      const tokens = readTokens(
+        await request<unknown>('/app/auth/refresh', { method: 'POST', body: { refresh_token: refreshToken } }),
+      );
+      if (!tokens.accessToken) return 'expired';
+      await replaceSession(tokens);
+      return 'renewed';
+    } catch (err) {
+      // No connection: the session isn't over, it just can't be renewed right now.
+      return err instanceof ApiError && err.status === 0 ? 'offline' : 'expired';
+    }
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+/**
+ * Every API call. Authenticated calls go out with the JWT; when the server answers 401
+ * (token expired), the session is renewed with the refresh token and the call is
+ * repeated once. Only if that fails too is the session over.
+ */
+export function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return send<T>(path, options, false);
+}
+
+async function send<T>(path: string, options: RequestOptions, retried: boolean): Promise<T> {
+  const { method = 'GET', body, auth = false, signal, timeoutMs = API_TIMEOUT_MS } = options;
   assertSafePath(path);
 
+  try {
+    await ensureSslPinning();
+  } catch {
+    throw new ApiError(INSECURE_CONNECTION, 0);
+  }
+
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // A file upload (FormData) goes as is: fetch sets the multipart boundary itself.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
   if (auth) {
     const token = await getToken();
@@ -113,7 +158,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener('abort', abortFromCaller);
 
@@ -122,13 +167,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     res = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isForm ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
       credentials: 'omit',
     });
   } catch (err) {
     if (signal?.aborted) throw err;
-    throw new ApiError(NETWORK_ERROR, 0);
+    // Development only: the real cause (timeout, TLS, refused) behind "No hay conexión".
+    if (__DEV__) console.warn(`[api] ${method} ${path} falló:`, err);
+    throw new ApiError(recentPinningViolation() ? INSECURE_CONNECTION : NETWORK_ERROR, 0);
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', abortFromCaller);
@@ -138,6 +185,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const data: unknown = isJson ? await res.json().catch(() => null) : null;
 
   if (res.status === 401 && auth) {
+    const outcome = retried ? 'expired' : await refreshSession();
+    if (outcome === 'renewed') return send<T>(path, options, true);
+    if (outcome === 'offline') throw new ApiError(NETWORK_ERROR, 0);
     await clearToken();
     sessionExpiredListeners.forEach((listener) => listener());
   }

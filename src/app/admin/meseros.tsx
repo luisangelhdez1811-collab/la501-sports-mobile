@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { getWaiterPerformance, type WaiterPeriod } from '@/api/admin';
-import { formatMoney } from '@/components/account/orders-list';
+import type { WaiterPeriod } from '@/api/admin';
+import { formatMoney } from '@/domain/money';
 import { AdminColors, Panel, PanelState, Segmented, StatCard, StatGrid, Tag } from '@/components/admin/admin-ui';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAdminResource } from '@/hooks/use-admin-resource';
+import { useWaiterPerformance } from '@/hooks/use-admin';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 const PERIODS = [
@@ -22,7 +22,7 @@ const time = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', 
 export default function WaiterPerformanceScreen() {
   const { colors } = useBrandTheme();
   const [period, setPeriod] = useState<WaiterPeriod>('hoy');
-  const perf = useAdminResource(`waiters-${period}`, (signal) => getWaiterPerformance(period, signal));
+  const perf = useWaiterPerformance(period);
   const data = perf.data;
   const empty = !!data && data.ranking.length === 0;
 

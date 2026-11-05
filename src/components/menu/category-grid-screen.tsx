@@ -4,7 +4,7 @@ import { FlatList, RefreshControl, StyleSheet, useWindowDimensions, View } from 
 import { AppHeader } from '@/components/brand/app-header';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { CategoryCard } from '@/components/menu/category-card';
-import { GRID_GAP, GRID_GUTTER, gridCardWidth } from '@/components/menu/grid';
+import { GRID_GAP, GRID_GUTTER, gridCardWidth, MENU_GRID_WINDOW } from '@/components/menu/grid';
 import { MenuStatus } from '@/components/menu/menu-status';
 import { MissingBanner } from '@/components/menu/missing-banner';
 import { Brand } from '@/constants/brand';
@@ -36,6 +36,7 @@ export function CategoryGridScreen({ hero, onOpen, bottomInset = 0, overlay }: C
         keyExtractor={(category) => category.name}
         numColumns={2}
         columnWrapperStyle={styles.row}
+        {...MENU_GRID_WINDOW}
         contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + 24 + bottomInset }]}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -52,7 +53,7 @@ export function CategoryGridScreen({ hero, onOpen, bottomInset = 0, overlay }: C
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
             colors={[Brand.orange]}
             progressBackgroundColor={colors.surface}
           />

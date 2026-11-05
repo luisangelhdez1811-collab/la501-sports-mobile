@@ -53,7 +53,7 @@ function PickerField({
     <View style={styles.container}>
       <Text style={[styles.label, { color: colors.textSecondary }]}>
         {label}
-        <Text style={{ color: Brand.orange }}> *</Text>
+        <Text style={{ color: colors.accent }}> *</Text>
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -174,7 +174,7 @@ export function DateField({ value, onChange, minDate, maxDate, isDisabled, error
                 }}
                 style={[
                   styles.day,
-                  selected && { backgroundColor: Brand.orange },
+                  selected && { backgroundColor: Brand.orangeFill },
                   !selected && isToday && { borderWidth: 1.5, borderColor: Brand.orange },
                 ]}>
                 <Text
@@ -294,7 +294,7 @@ export function TimeField({ value, onChange, range, hoursLabel, needsDate, error
             }}
             style={({ pressed }) => [
               styles.confirm,
-              { backgroundColor: pressed ? Brand.greenDark : Brand.green },
+              { backgroundColor: pressed ? Brand.greenFillPressed : Brand.greenFill },
               pending === null && styles.dim,
             ]}>
             <Text style={styles.confirmText}>
@@ -336,7 +336,7 @@ function TimeColumn({
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               onPress={() => onSelect(item.key)}
-              style={[styles.timeItem, active && { backgroundColor: Brand.orange }]}>
+              style={[styles.timeItem, active && { backgroundColor: Brand.orangeFill }]}>
               <Text style={[styles.timeItemText, { color: active ? Brand.white : colors.text }]}>{item.label}</Text>
             </Pressable>
           );

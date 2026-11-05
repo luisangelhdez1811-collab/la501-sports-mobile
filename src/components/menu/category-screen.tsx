@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -16,21 +16,21 @@ import { AppHeader } from '@/components/brand/app-header';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { CategoryCard } from '@/components/menu/category-card';
-import { GRID_GAP, GRID_GUTTER, gridCardWidth } from '@/components/menu/grid';
+import { GRID_GAP, GRID_GUTTER, gridCardWidth, MENU_GRID_WINDOW } from '@/components/menu/grid';
 import { MenuStatus } from '@/components/menu/menu-status';
 import { ProductCard } from '@/components/menu/product-card';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
 import { CART_BAR_HEIGHT, CartBar } from '@/components/order/cart-bar';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { getCachedDetail, loadDetails, useDetailsVersion } from '@/data/product-details';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCart } from '@/hooks/use-cart';
 import { useMenu } from '@/hooks/use-menu';
+import { useCategorySubgroups } from '@/hooks/use-product-detail';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Category, Product } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
-import { groupBySubcategory } from '@/utils/subcategories';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type Row = { type: 'subcategory'; group: Category } | { type: 'product'; product: Product };
 
@@ -51,23 +51,9 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
   const { categories, loading, refreshing, error, stale, reload, refresh } = useMenu();
   const cardWidth = gridCardWidth(width);
   const [selected, setSelected] = useState<Product | null>(null);
+  const policy = useStorePolicy();
 
-  // Subcategories come from the saved dish details until the menu endpoint sends them.
-  useDetailsVersion();
-  useEffect(() => {
-    loadDetails();
-  }, []);
-  const found = categories.find((c) => c.name === nombre);
-  const category = found && {
-    ...found,
-    products: found.products.map((p) =>
-      p.subcategory ? p : { ...p, subcategory: getCachedDetail(p.id)?.subcategory ?? '' },
-    ),
-  };
-  // Only split once every dish's subcategory is known, so a half-synced category never
-  // shows a misleading partial grouping.
-  const subcategoriesKnown = !!found?.products.every((p) => p.subcategory || getCachedDetail(p.id));
-  const groups = category && subcategoriesKnown ? groupBySubcategory(category.products) : null;
+  const { category, groups } = useCategorySubgroups(categories.find((c) => c.name === nombre));
   const subgroup = sub ? groups?.find((g) => g.name === sub) : undefined;
 
   // What this screen shows: the subcategory picker, or a list of dishes.
@@ -95,6 +81,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
         keyExtractor={(row) => (row.type === 'subcategory' ? `sub-${row.group.name}` : row.product.key)}
         numColumns={2}
         columnWrapperStyle={styles.row}
+        {...MENU_GRID_WINDOW}
         contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + 24 + cartInset }]}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -110,14 +97,19 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
               <SymbolView
                 name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
                 size={16}
-                tintColor={Brand.orange}
+                tintColor={colors.accent}
               />
               <Text style={[styles.backText, { color: colors.text }]}>{sub ? nombre : 'Categorías'}</Text>
             </Pressable>
 
             <View style={styles.banner}>
               {image ? (
-                <Image source={menuImage(image)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                <Image
+                  source={menuImage(image)}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={menuImageTransition(image)}
+                />
               ) : (
                 <ImagePlaceholder style={StyleSheet.absoluteFill} />
               )}
@@ -128,7 +120,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
                 <Text style={styles.bannerTitle} accessibilityRole="header" numberOfLines={2}>
                   {title}
                 </Text>
-                {!!category && <Text style={styles.bannerCount}>{countLabel}</Text>}
+                {!!category && <Text style={[styles.bannerCount, { color: colors.accent }]}>{countLabel}</Text>}
               </View>
             </View>
 
@@ -169,7 +161,7 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
             colors={[Brand.orange]}
             progressBackgroundColor={colors.surface}
           />
@@ -182,7 +174,8 @@ export function CategoryScreen({ nombre, sub, onOpenSubcategory }: CategoryScree
       <ProductDetailSheet
         product={selected}
         onClose={() => setSelected(null)}
-        onAdd={(product, excluded, notes) => cart.add(product, { excluded, notes })}
+        alcohol={policy.alcohol}
+        onAdd={(product, excluded, notes, _quantity, selection) => cart.add(product, { excluded, notes, selection })}
       />
     </View>
   );
@@ -258,7 +251,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   bannerCount: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 14,
     letterSpacing: 2,

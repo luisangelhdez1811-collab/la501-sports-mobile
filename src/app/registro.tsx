@@ -1,30 +1,19 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { errorMessage } from '@/api/client';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { Checkbox } from '@/components/brand/checkbox';
 import { FormCard } from '@/components/brand/form-card';
 import { FormMessage } from '@/components/brand/form-message';
 import { PasswordRules } from '@/components/brand/password-rules';
-import { SelectField } from '@/components/brand/select-field';
 import { OrDivider, TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
-import { Brand, BrandFonts } from '@/constants/brand';
-import { useAuth } from '@/hooks/use-auth';
+import { BrandFonts } from '@/constants/brand';
+import { useAfterSignIn } from '@/hooks/use-after-sign-in';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { isEmail, isPhone, isStrongPassword, normalizePhone } from '@/utils/validation';
-
-// Same questions as the website's registration form (/registro).
-const SECURITY_QUESTIONS = [
-  '¿Cuál es el nombre de tu primera mascota?',
-  '¿Cuál es tu platillo favorito de La 501?',
-  '¿En qué ciudad se conocieron tus padres?',
-] as const;
-
-type Errors = Partial<Record<'name' | 'email' | 'phone' | 'question' | 'answer' | 'password' | 'confirm', string>>;
+import { useRegisterForm } from '@/hooks/use-session-forms';
+import { normalizePhone } from '@/utils/validation';
 
 function FormSection({ children }: { children: string }) {
   const { colors } = useBrandTheme();
@@ -36,62 +25,36 @@ function FormSection({ children }: { children: string }) {
 }
 
 export default function RegisterScreen() {
-  const { signUp } = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [question, setQuestion] = useState<string | null>(null);
-  const [answer, setAnswer] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  // Consent checkboxes always start unchecked (explicit opt-in).
-  const [terms, setTerms] = useState(false);
-  const [promoOptIn, setPromoOptIn] = useState(false);
-  const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const validate = (): Errors => {
-    const next: Errors = {};
-    if (name.trim().length < 3) next.name = 'Escribe tu nombre completo.';
-    if (!isEmail(email)) next.email = 'Correo electrónico no válido.';
-    if (!isPhone(phone)) next.phone = 'El teléfono debe tener 10 dígitos.';
-    if (!question) next.question = 'Selecciona una pregunta.';
-    if (answer.trim().length < 2) next.answer = 'Escribe tu respuesta.';
-    if (!isStrongPassword(password)) next.password = 'La contraseña no cumple los requisitos.';
-    if (confirm !== password) next.confirm = 'Las contraseñas no coinciden.';
-    return next;
-  };
+  const { colors } = useBrandTheme();
+  const {
+    name,
+    setName,
+    email,
+    setEmail,
+    phone,
+    setPhone,
+    password,
+    setPassword,
+    confirm,
+    setConfirm,
+    terms,
+    setTerms,
+    adult,
+    setAdult,
+    promoOptIn,
+    setPromoOptIn,
+    errors,
+    formError,
+    submitting,
+    submit: register,
+  } = useRegisterForm();
+  const afterSignIn = useAfterSignIn();
 
   const submit = async () => {
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length > 0) return setFormError('Revisa los campos marcados.');
-    if (!terms) return setFormError('Para crear tu cuenta debes aceptar los Términos y el Aviso de privacidad.');
-
-    setFormError(null);
-    setSubmitting(true);
-    try {
-      const user = await signUp({
-        name,
-        email,
-        phone: normalizePhone(phone),
-        securityQuestion: question!,
-        securityAnswer: answer,
-        password,
-        passwordConfirmation: confirm,
-        promoOptIn,
-      });
-      // Without an automatic session, send them to sign in with the new account.
-      if (user) {
-        if (router.canGoBack()) router.back();
-        else router.replace('/');
-      } else router.replace('/login');
-    } catch (err) {
-      setFormError(errorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const outcome = await register();
+    // Without an automatic session, send them to sign in with the new account.
+    if (outcome === 'sign-in') router.replace({ pathname: '/login', params: afterSignIn.params });
+    else if (outcome === 'signed-in') afterSignIn.goOn();
   };
 
   return (
@@ -139,27 +102,6 @@ export default function RegisterScreen() {
           error={errors.phone}
         />
 
-        <FormSection>Pregunta de seguridad</FormSection>
-        <SelectField
-          label="Pregunta"
-          required
-          placeholder="Selecciona una pregunta"
-          options={SECURITY_QUESTIONS}
-          value={question}
-          onChange={setQuestion}
-          error={errors.question}
-        />
-        <TextField
-          label="Tu respuesta"
-          required
-          placeholder="Respuesta secreta"
-          value={answer}
-          onChangeText={setAnswer}
-          autoCapitalize="none"
-          autoCorrect={false}
-          error={errors.answer}
-        />
-
         <FormSection>Contraseña</FormSection>
         <TextField
           label="Nueva contraseña"
@@ -186,16 +128,19 @@ export default function RegisterScreen() {
         />
 
         <FormSection>Privacidad</FormSection>
+        <Checkbox checked={adult} onChange={setAdult} accessibilityLabel="Soy mayor de 18 años">
+          Soy mayor de 18 años. <Text style={[styles.required, { color: colors.accent }]}>*</Text>
+        </Checkbox>
         <Checkbox checked={terms} onChange={setTerms} accessibilityLabel="Acepto los términos y el aviso de privacidad">
           He leído y acepto los{' '}
-          <Text style={styles.link} onPress={() => router.push('/terminos')} accessibilityRole="link">
+          <Text style={[styles.link, { color: colors.accent }]} onPress={() => router.push('/terminos')} accessibilityRole="link">
             Términos y condiciones
           </Text>{' '}
           y el{' '}
-          <Text style={styles.link} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
+          <Text style={[styles.link, { color: colors.accent }]} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
             Aviso de privacidad
           </Text>{' '}
-          de La 501 Sports Restaurant. <Text style={styles.required}>*</Text>
+          de La 501 Sports Restaurant. <Text style={[styles.required, { color: colors.accent }]}>*</Text>
         </Checkbox>
         <Checkbox
           checked={promoOptIn}
@@ -212,7 +157,8 @@ export default function RegisterScreen() {
           loading={submitting}
         />
         <OrDivider />
-        <TextLink prefix="¿Ya tienes cuenta?" label="Inicia sesión" onPress={() => router.replace('/login')} />
+        <TextLink prefix="¿Ya tienes cuenta?" label="Inicia sesión" onPress={() => router.replace({ pathname: '/login', params: afterSignIn.params })}
+        />
       </FormCard>
     </BrandScreen>
   );
@@ -231,11 +177,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   link: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
     textDecorationLine: 'underline',
   },
   required: {
-    color: Brand.orange,
   },
 });

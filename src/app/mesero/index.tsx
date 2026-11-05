@@ -1,11 +1,9 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { errorMessage } from '@/api/client';
-import { addTable, getTables, removeTable, type TablesMap } from '@/api/waiter';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { AdminTitle, Segmented } from '@/components/admin/admin-ui';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -13,14 +11,18 @@ import { OfflineBanner } from '@/components/brand/offline-banner';
 import { ChargeSheet } from '@/components/waiter/charge-sheet';
 import { OutboxBanner } from '@/components/waiter/outbox-sync';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useOutbox } from '@/data/waiter-outbox';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
-import { useIsOffline } from '@/hooks/use-connectivity';
-import { summarize, tableView, type TableView } from '@/domain/waiter-tables';
+import { tableState, type TableState, type TableView } from '@/domain/waiter-tables';
+import { useTablesMap } from '@/hooks/use-tables-map';
 
-// Other waiters change tables too: refresh the map every so often while it's open.
-const REFRESH_MS = 20_000;
+
+/** Same states as the website's map. */
+// Palette keys, so each state reads in light and dark mode (AA).
+const STATES: Record<TableState, { label: string; tone: 'success' | 'warning' }> = {
+  libre: { label: 'Libre', tone: 'success' },
+  preparando: { label: 'En preparación', tone: 'warning' },
+  lista: { label: 'Lista para cobrar', tone: 'success' },
+};
 
 type Filter = 'todas' | 'ocupadas' | 'libres';
 
@@ -31,38 +33,14 @@ type Filter = 'todas' | 'ocupadas' | 'libres';
  */
 export default function TablesMapScreen() {
   const { colors } = useBrandTheme();
-  const offline = useIsOffline();
-  const map = useCachedResource<TablesMap>('waiter-tables', getTables, { persist: true });
-  const { entries } = useOutbox();
+  const { offline, map, tables, totals, toServeTotal, last, canRemove, changing, change: changeTables } = useTablesMap();
+  const { reload } = map;
   const [filter, setFilter] = useState<Filter>('todas');
   const [charging, setCharging] = useState<TableView | null>(null);
-  const [changing, setChanging] = useState<'add' | 'remove' | null>(null);
-  const { reload } = map;
 
-  useEffect(() => {
-    if (offline) return;
-    const timer = setInterval(reload, REFRESH_MS);
-    return () => clearInterval(timer);
-    // `reload` is recreated every render; one timer per connection state is enough.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offline]);
-
-  // Something saved offline just reached the server: show the server's numbers.
-  const pendingBefore = useRef(entries.length);
-  useEffect(() => {
-    if (entries.length < pendingBefore.current) reload();
-    pendingBefore.current = entries.length;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries.length]);
-
-  const tables = (map.data?.tables ?? []).map((table) => tableView(table, entries));
-  const totals = summarize(tables);
   const visible = tables.filter((t) =>
     filter === 'todas' ? true : filter === 'ocupadas' ? t.status === 'ocupada' : t.status === 'disponible',
   );
-  const last = tables.at(-1);
-  const canRemove =
-    !!map.data && !!last && tables.length > map.data.minTables && last.status === 'disponible' && last.unsent === 0;
 
   const add = () => {
     Alert.alert('Agregar mesa', `Se agregará la mesa ${tables.length + 1} al mapa.`, [
@@ -78,16 +56,8 @@ export default function TablesMapScreen() {
     ]);
   };
   const change = async (action: 'add' | 'remove') => {
-    setChanging(action);
-    try {
-      if (action === 'add') await addTable();
-      else if (last) await removeTable(last.id);
-      reload();
-    } catch (err) {
-      Alert.alert(action === 'add' ? 'No se pudo agregar' : 'No se pudo quitar', errorMessage(err));
-    } finally {
-      setChanging(null);
-    }
+    const failed = await changeTables(action);
+    if (failed) Alert.alert(action === 'add' ? 'No se pudo agregar' : 'No se pudo quitar', failed);
   };
 
   const openOrder = (table: TableView) =>
@@ -99,7 +69,8 @@ export default function TablesMapScreen() {
         title="Mesas"
         subtitle={
           map.data
-            ? `${totals.busy} ocupadas · ${totals.free} libres · ${formatMoney(totals.openTotal)} por cobrar`
+            ? `${totals.busy} ocupadas · ${totals.free} libres · ${formatMoney(totals.openTotal)} por cobrar` +
+              (toServeTotal > 0 ? ` · ${toServeTotal} por entregar` : '')
             : 'Toma pedidos y cobra desde aquí.'
         }
       />
@@ -190,11 +161,14 @@ export default function TablesMapScreen() {
 function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () => void; onCharge: () => void }) {
   const { colors } = useBrandTheme();
   const busy = table.status === 'ocupada';
+  const state = STATES[tableState(table)];
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Mesa ${table.number}, ${busy ? `ocupada, ${formatMoney(table.total)}` : 'libre'}`}
+      accessibilityLabel={`Mesa ${table.number}, ${state.label}${busy ? `, ${formatMoney(table.total)}` : ''}${
+        table.toServe > 0 ? `, ${table.toServe} por entregar` : ''
+      }`}
       accessibilityHint={busy ? 'Agrega platillos a esta mesa' : 'Toma el pedido de esta mesa'}
       onPress={onOpen}
       style={({ pressed }) => [
@@ -205,7 +179,7 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
         pressed && styles.pressed,
       ]}>
       <View style={styles.cardTop}>
-        <Text style={[styles.number, { color: busy ? Brand.orange : colors.text }]}>{table.number}</Text>
+        <Text style={[styles.number, { color: busy ? colors.accent : colors.text }]}>{table.number}</Text>
         <View style={styles.badges}>
           {table.unsent > 0 && (
             <View style={[styles.badge, { backgroundColor: '#F59E0B' }]} accessibilityLabel={`${table.unsent} sin enviar`}>
@@ -213,15 +187,25 @@ function TableCard({ table, onOpen, onCharge }: { table: TableView; onOpen: () =
               <Text style={styles.badgeText}>{table.unsent}</Text>
             </View>
           )}
-          {busy && table.kitchenPending && (
-            <SymbolView name={{ ios: 'flame.fill', android: 'local_fire_department', web: 'local_fire_department' }} size={18} tintColor={Brand.orange} />
+          {table.toServe > 0 && (
+            <View style={[styles.badge, { backgroundColor: Brand.greenFill }]} accessibilityLabel={`${table.toServe} por entregar`}>
+              <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={12} tintColor={Brand.white} />
+              <Text style={styles.badgeText}>{table.toServe}</Text>
+            </View>
           )}
         </View>
       </View>
 
-      <Text style={[styles.status, { color: busy ? Brand.orange : Brand.greenLight }]}>
-        {busy ? (table.ordersCount > 1 ? `Ocupada · ${table.ordersCount} cuentas` : 'Ocupada') : 'Libre'}
-      </Text>
+      <View style={styles.stateRow}>
+        <View style={[styles.stateDot, { backgroundColor: colors[state.tone] }]} />
+        <Text style={[styles.status, { color: colors[state.tone] }]} numberOfLines={1}>
+          {state.label}
+        </Text>
+      </View>
+      {busy && table.ordersCount > 1 && (
+        <Text style={[styles.accounts, { color: colors.textSecondary }]}>{table.ordersCount} cuentas</Text>
+      )}
+      {table.toServe > 0 && <Text style={[styles.toServe, { color: colors.success }]}>{table.toServe} por entregar</Text>}
       {busy && (
         <Text style={[styles.total, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
           {formatMoney(table.total)}
@@ -347,11 +331,30 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
   },
+  stateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stateDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   status: {
+    flexShrink: 1,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 12,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  accounts: {
+    fontFamily: BrandFonts.bodyMedium,
+    fontSize: 12,
+  },
+  toServe: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 13,
   },
   total: {
     marginTop: 4,

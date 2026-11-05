@@ -5,7 +5,7 @@ import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import type { Category } from '@/types/product';
 import { categoryImage } from '@/utils/category-image';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type CategoryCardProps = {
   category: Category;
@@ -29,7 +29,7 @@ export function CategoryCard({ category, width, onPress }: CategoryCardProps) {
           source={menuImage(image)}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
-          transition={250}
+          transition={menuImageTransition(image)}
           cachePolicy="memory-disk"
         />
       ) : (

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Brand, BrandFonts } from '@/constants/brand';
+import { BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 type TextLinkProps = {
@@ -20,7 +20,7 @@ export function TextLink({ prefix, label, onPress, muted = false }: TextLinkProp
         <Text
           style={[
             styles.text,
-            muted ? { color: colors.textSecondary } : { color: Brand.orange, fontFamily: BrandFonts.bodyBold },
+            muted ? { color: colors.textSecondary } : { color: colors.accent, fontFamily: BrandFonts.bodyBold },
           ]}>
           {label}
         </Text>

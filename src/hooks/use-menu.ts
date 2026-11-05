@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 import { getMenu, type MenuResult } from '@/api/catalog';
 import { errorMessage } from '@/api/client';
 import { prefetchMenuImages } from '@/data/menu-images';
+import { completeCategories } from '@/domain/menu-layout';
 import { SNAPSHOT_AT, snapshotMenu } from '@/data/menu-snapshot';
 import { syncDetails } from '@/data/product-details';
 import { useOnReconnect } from '@/hooks/use-connectivity';
 import type { Category } from '@/types/product';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 const CACHE_MS = 10 * 60 * 1000;
 // A full menu load costs ~18 of the API's 60 requests/min, so quick repeated
@@ -49,7 +50,7 @@ async function fetchMenu(previous: Category[]) {
 /** The newest menu available without the network: saved on the device or bundled. */
 async function localMenu() {
   const disk = await readCache<Category[]>(DISK_KEY);
-  return disk && disk.savedAt > SNAPSHOT_AT ? disk.data : null;
+  return disk && disk.savedAt > SNAPSHOT_AT && Array.isArray(disk.data) ? completeCategories(disk.data) : null;
 }
 
 /**

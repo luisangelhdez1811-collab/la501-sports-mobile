@@ -1,6 +1,6 @@
 import { ApiError, request } from './client';
 import { asHttpsUrl, asId, asNumber, asObject, asString, pick, unwrap, type Json } from './parse';
-import { clearToken, saveToken } from './token-storage';
+import { clearToken, getRefreshToken, readTokens, saveSession, type SessionTokens } from './token-storage';
 
 import { normalizePhone } from '@/utils/validation';
 
@@ -57,11 +57,10 @@ export function toUser(raw: unknown): User | null {
   };
 }
 
-function readSession(data: unknown): { token: string; user: User | null } {
+function readSession(data: unknown): { tokens: SessionTokens; user: User | null } {
   const root = asObject(data) ?? {};
   const body: Json = unwrap(data);
-  const token = asString(pick(root, 'token', 'access_token') ?? pick(body, 'token', 'access_token'));
-  return { token, user: toUser(pick(root, 'user') ?? pick(body, 'user')) };
+  return { tokens: readTokens(data), user: toUser(pick(root, 'user') ?? pick(body, 'user')) };
 }
 
 export async function login(email: string, password: string, { remember = true } = {}) {
@@ -71,10 +70,10 @@ export async function login(email: string, password: string, { remember = true }
   });
   const session = readSession(data);
   // Says which part is missing, so a backend change is easy to spot.
-  if (!session.token) throw new ApiError('El servidor no envió la sesión (token). Avisa al administrador.', 200);
+  if (!session.tokens.accessToken) throw new ApiError('El servidor no envió la sesión (token). Avisa al administrador.', 200);
   if (!session.user) throw new ApiError('El servidor no envió los datos del usuario. Avisa al administrador.', 200);
   try {
-    await saveToken(session.token, { persist: remember });
+    await saveSession(session.tokens, { persist: remember });
   } catch {
     throw new ApiError('No se pudo guardar la sesión en este teléfono. Intenta de nuevo.', 0);
   }
@@ -86,12 +85,15 @@ export type RegisterInput = {
   name: string;
   email: string;
   phone: string;
-  securityQuestion: string;
-  securityAnswer: string;
   password: string;
   passwordConfirmation: string;
   /** Optional, never pre-checked: promotions by email (secondary purpose). */
   promoOptIn: boolean;
+  /** The service is for adults only (it sells alcohol); never pre-checked. */
+  adult: boolean;
+  /** Versions of the texts the person accepts (from /public/info); null until published. */
+  termsVersion: string | null;
+  privacyVersion: string | null;
 };
 
 export async function register(input: RegisterInput) {
@@ -101,20 +103,21 @@ export async function register(input: RegisterInput) {
       name: input.name.trim(),
       email: input.email.trim().toLowerCase(),
       telefono: input.phone,
-      pregunta_secreta: input.securityQuestion,
-      respuesta_secreta: input.securityAnswer.trim(),
       password: input.password,
       password_confirmation: input.passwordConfirmation,
       // Explicit consent recorded with the account (checkboxes are never pre-checked).
       terms: true,
       acepta_aviso_privacidad: true,
       acepta_promociones: input.promoOptIn,
+      mayor_de_edad: input.adult,
+      ...(input.termsVersion ? { terms_version: input.termsVersion } : {}),
+      ...(input.privacyVersion ? { privacy_version: input.privacyVersion } : {}),
     },
   });
   // Some backends log the user in on registration; if a token comes back, keep it.
   const session = readSession(data);
-  if (session.token && session.user) {
-    await saveToken(session.token);
+  if (session.tokens.accessToken && session.user) {
+    await saveSession(session.tokens);
     return session.user;
   }
   return null;
@@ -122,7 +125,13 @@ export async function register(input: RegisterInput) {
 
 export async function logout() {
   try {
-    await request('/app/auth/logout', { method: 'POST', auth: true });
+    // The refresh token is revoked on the server; the JWT expires by itself in minutes.
+    const refreshToken = await getRefreshToken();
+    await request('/app/auth/logout', {
+      method: 'POST',
+      auth: true,
+      body: refreshToken ? { refresh_token: refreshToken } : undefined,
+    });
   } finally {
     // The local session ends even if the server can't be reached.
     await clearToken();

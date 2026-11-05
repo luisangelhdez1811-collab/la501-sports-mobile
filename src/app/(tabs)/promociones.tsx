@@ -1,6 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { getPromotions } from '@/api/catalog';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { OfflineBanner } from '@/components/brand/offline-banner';
@@ -10,21 +9,15 @@ import { NewsletterCard } from '@/components/promo/newsletter-card';
 import { PromoCarousel } from '@/components/promo/promo-carousel';
 import { Brand, BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
+import { usePromotions } from '@/hooks/use-content';
 import { useCart } from '@/hooks/use-cart';
-import type { Promotion } from '@/types/product';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 
 export default function PromotionsScreen() {
   const { colors } = useBrandTheme();
   const cart = useCart();
-  const {
-    data: promotions,
-    error,
-    refreshing,
-    stale,
-    reload,
-    refresh,
-  } = useCachedResource<Promotion[]>('promotions', getPromotions);
+  const policy = useStorePolicy();
+  const { data: promotions, error, refreshing, stale, reload, refresh } = usePromotions();
 
   return (
     <BrandScreen refreshing={refreshing} onRefresh={refresh} contentStyle={styles.content}>
@@ -34,7 +27,7 @@ export default function PromotionsScreen() {
         tag="La 501 Sports Restaurant"
         lead="Promociones"
         accent="especiales"
-        description="Aprovecha nuestras ofertas exclusivas para ti y tu familia. ¡No dejes pasar estas oportunidades!"
+        description="Ofertas vigentes del restaurante. Revisa la vigencia y las condiciones de cada una antes de pedir."
       />
 
       <View style={styles.body}>
@@ -57,7 +50,7 @@ export default function PromotionsScreen() {
           </Text>
         )}
 
-        {!!promotions?.length && <PromoCarousel promotions={promotions} onAdd={(promo) => cart.add(promo)} />}
+        {!!promotions?.length && <PromoCarousel promotions={promotions} alcohol={policy.alcohol} onAdd={(promo) => cart.add(promo)} />}
 
         <NewsletterCard />
       </View>

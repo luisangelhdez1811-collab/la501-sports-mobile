@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 import { ApiError, errorMessage } from '@/api/client';
 import { sendToKitchen, type KitchenItem } from '@/api/waiter';
-import { readCache, writeCache } from '@/utils/offline-cache';
+import { readCache, writeCache } from '@/data/offline-cache';
 
 /**
  * Orders the waiter took while the server couldn't be reached. They're saved on the phone
@@ -11,7 +11,8 @@ import { readCache, writeCache } from '@/utils/offline-cache';
  * connection, so only orders (no money) ever wait here.
  */
 
-export type OutboxItem = KitchenItem & { name: string; price: number };
+/** `name` includes the size ("Margarita (Litro)"); `summary` the options picked. */
+export type OutboxItem = KitchenItem & { name: string; price: number; summary?: string };
 
 export type OutboxOrder = {
   ref: string;

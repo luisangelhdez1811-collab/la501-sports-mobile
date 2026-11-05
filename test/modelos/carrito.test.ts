@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from '@jest/globals';
 
-import { addItem, cartCount, cartTotal, changeQuantity, MAX_QUANTITY, removeItem } from '@/domain/cart';
+import { addItem, cartCount, cartTotal, changeQuantity, MAX_QUANTITY, quantityOf, removeItem, removeOneOf } from '@/domain/cart';
 
 import { papas, platillo } from '../fixtures/productos';
 
@@ -46,6 +46,34 @@ describe('modelo del carrito', () => {
     expect(changeQuantity(carrito, linea, -1)).toEqual([]);
     expect(changeQuantity(carrito, linea, 500)[0].quantity).toBe(MAX_QUANTITY);
     expect(removeItem(carrito, linea)).toEqual([]);
+  });
+
+  it('el mismo platillo con otra presentación u opciones es otra línea, y suma su precio', () => {
+    const margarita = platillo({
+      key: 'margarita',
+      id: 100,
+      price: 80,
+      variants: [
+        { id: 543, name: 'Vaso', price: 80 },
+        { id: 544, name: 'Litro', price: 160 },
+      ],
+    });
+    const vaso = { selection: { variantId: 543, counts: {} } };
+    const litro = { selection: { variantId: 544, counts: {} } };
+    const carrito = addItem(addItem(addItem([], margarita, vaso), margarita, litro), margarita, litro);
+
+    expect(carrito).toHaveLength(2);
+    expect(carrito[1].quantity).toBe(2);
+    expect(cartTotal(carrito)).toBe(80 + 160 * 2);
+  });
+
+  it('el "−" de la tarjeta quita del último agregado y el contador suma todas sus líneas', () => {
+    const carrito = addItem(addItem([], hamburguesa), hamburguesa, sinCebolla);
+
+    expect(quantityOf(carrito, hamburguesa.key)).toBe(2);
+    const menos = removeOneOf(carrito, hamburguesa.key);
+    expect(menos).toHaveLength(1);
+    expect(menos[0].excluded).toEqual([]);
   });
 
   it('no modifica el carrito original (inmutable)', () => {

@@ -25,3 +25,10 @@ export const PASSWORD_RULES = [
 export function isStrongPassword(value: string) {
   return PASSWORD_RULES.every((rule) => rule.test(value));
 }
+
+/** Verification codes sent by SMS or email are 6 digits. */
+export const CODE_LENGTH = 6;
+
+export function isCompleteCode(code: string) {
+  return code.length === CODE_LENGTH;
+}

@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { getRecommendations } from '@/api/catalog';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormCard } from '@/components/brand/form-card';
@@ -13,13 +12,17 @@ import { FormMessage } from '@/components/brand/form-message';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { PageHero } from '@/components/brand/page-hero';
 import { SkewButton } from '@/components/brand/skew-button';
+import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { CartLine } from '@/components/order/cart-line';
 import { ProductDetailSheet } from '@/components/menu/product-detail-sheet';
-import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { BrandFonts, Radius } from '@/constants/brand';
+import { isAlcoholic, requiresAdult } from '@/domain/checkout-rules';
 import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useCart } from '@/hooks/use-cart';
+import { useRecommendations } from '@/hooks/use-content';
 import { useIsOffline } from '@/hooks/use-connectivity';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 import type { Product } from '@/types/product';
 import { menuImage } from '@/utils/image-source';
 
@@ -45,24 +48,9 @@ function EmptyCart() {
 function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
   const { colors } = useBrandTheme();
   const cart = useCart();
-  const [items, setItems] = useState<Product[]>([]);
-  const [personalized, setPersonalized] = useState(false);
-  const idsKey = cart.items
-    .map((i) => i.product.id)
-    .filter((id): id is number => id !== null)
-    .join(',');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const ids = idsKey ? idsKey.split(',').map(Number) : [];
-    getRecommendations(ids, controller.signal)
-      .then((data) => {
-        setItems(data.products.filter((p) => p.available).slice(0, 8));
-        setPersonalized(data.personalized);
-      })
-      .catch(() => setItems([]));
-    return () => controller.abort();
-  }, [idsKey]);
+  const { items, personalized } = useRecommendations(
+    cart.items.map((i) => i.product.id).filter((id): id is number => id !== null),
+  );
 
   if (items.length === 0) return null;
 
@@ -78,7 +66,7 @@ function Recommendations({ onPick }: { onPick: (product: Product) => void }) {
             <Text style={[styles.recoName, { color: colors.text }]} numberOfLines={1}>
               {product.name}
             </Text>
-            <Text style={styles.recoPrice}>{formatMoney(product.price)}</Text>
+            <Text style={[styles.recoPrice, { color: colors.success }]}>{formatMoney(product.price)}</Text>
             <BrandButton title="Agregar" onPress={() => onPick(product)} style={styles.recoButton} />
           </View>
         ))}
@@ -92,6 +80,11 @@ export default function CartScreen() {
   const cart = useCart();
   const { status } = useAuth();
   const [customizing, setCustomizing] = useState<Product | null>(null);
+  const policy = useStorePolicy();
+  const withAlcohol = requiresAdult(cart.items);
+  // Licence hours or dry law: drinks with alcohol can't be sent now (M-23).
+  const alcoholClosed = withAlcohol && !policy.alcohol.salesOpen;
+  const removeAlcohol = () => cart.items.filter(isAlcoholic).forEach((item) => cart.remove(item.lineId));
   // Checkout needs each item's server id; warn here instead of failing after the form.
   const notOrderable = cart.items.filter((item) => item.product.id === null);
   // The cart works offline (it's saved on the device); paying needs a connection.
@@ -118,12 +111,13 @@ export default function CartScreen() {
             </View>
 
             <View style={styles.totalRow}>
-              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total a pagar</Text>
+              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total de tus productos</Text>
               <Text style={[styles.total, { color: colors.text }]}>
-                <Text style={{ color: Brand.orange }}>$</Text>
+                <Text style={{ color: colors.accent }}>$</Text>
                 {formatMoney(cart.total).slice(1)}
               </Text>
             </View>
+            <Text style={[styles.promoNote, { color: colors.text }]}>No incluye el envío: lo cobra el repartidor al entregar.</Text>
             {cart.items.some((item) => item.product.price === 0 && !!item.product.priceLabel) && (
               <Text style={[styles.promoNote, { color: colors.textSecondary }]}>
                 + promociones: su precio se suma al confirmar tu pedido.
@@ -133,13 +127,22 @@ export default function CartScreen() {
             {status !== 'authenticated' && (
               <Pressable
                 accessibilityRole="link"
-                onPress={() => router.push('/login')}
+                onPress={() => router.push({ pathname: '/login', params: { volver: 'carrito' } })}
                 style={styles.pointsNotice}>
-                <SymbolView name={{ ios: 'info.circle', android: 'info', web: 'info' }} size={18} tintColor="#FACC15" />
-                <Text style={styles.pointsText}>
+                <SymbolView name={{ ios: 'info.circle', android: 'info', web: 'info' }} size={18} tintColor={colors.warning} />
+                <Text style={[styles.pointsText, { color: colors.warning }]}>
                   <Text style={styles.pointsLink}>Inicia sesión</Text> para acumular puntos con esta compra.
                 </Text>
               </Pressable>
+            )}
+
+            {withAlcohol && <AlcoholNotice legend={policy.alcohol.legend} />}
+
+            {alcoholClosed && (
+              <View style={styles.closed}>
+                <FormMessage type="info">{policy.alcohol.closedMessage}</FormMessage>
+                <BrandButton title="Quitar bebidas con alcohol" variant="secondary" onPress={removeAlcohol} />
+              </View>
             )}
 
             {notOrderable.length > 0 && (
@@ -161,7 +164,7 @@ export default function CartScreen() {
                     : { ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' }
                 }
                 onPress={() => router.push('/checkout')}
-                disabled={notOrderable.length > 0 || offline}
+                disabled={notOrderable.length > 0 || offline || alcoholClosed}
                 style={styles.flex2}
               />
             </View>
@@ -174,13 +177,17 @@ export default function CartScreen() {
       <ProductDetailSheet
         product={customizing}
         onClose={() => setCustomizing(null)}
-        onAdd={(product, excluded, notes) => cart.add(product, { excluded, notes })}
+        alcohol={policy.alcohol}
+        onAdd={(product, excluded, notes, _quantity, selection) => cart.add(product, { excluded, notes, selection })}
       />
     </BrandScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  closed: {
+    gap: 10,
+  },
   content: {
     padding: 0,
     paddingTop: 0,
@@ -249,7 +256,6 @@ const styles = StyleSheet.create({
   },
   pointsText: {
     flex: 1,
-    color: '#FACC15',
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 14,
   },
@@ -291,7 +297,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   recoPrice: {
-    color: Brand.greenLight,
     fontFamily: BrandFonts.labelBold,
     fontSize: 15,
   },

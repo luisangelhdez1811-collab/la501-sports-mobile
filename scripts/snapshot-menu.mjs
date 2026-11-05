@@ -3,7 +3,7 @@
  * Bundles the current menu into the app so it works offline from the very first launch:
  *   - src/data/menu-snapshot.json      categories, products and every dish's details
  *   - assets/menu/*                     every dish photo, phone-sized
- *   - src/data/menu-snapshot-images.ts  photo URL -> bundled file (require map)
+ *   - src/content/menu-snapshot-images.ts  photo URL -> bundled file (require map)
  *
  * Run before each build:  npm run snapshot:menu
  * The app still prefers live data when online; this is only the offline baseline.
@@ -19,7 +19,7 @@ import { sizedImageUrl } from '../src/utils/image-url.ts';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const IMAGES_DIR = join(root, 'assets', 'menu');
 const SNAPSHOT_FILE = join(root, 'src', 'data', 'menu-snapshot.json');
-const IMAGES_MAP_FILE = join(root, 'src', 'data', 'menu-snapshot-images.ts');
+const IMAGES_MAP_FILE = join(root, 'src', 'content', 'menu-snapshot-images.ts');
 
 // The API allows 60 requests/min; stay well below it.
 const API_DELAY_MS = 1300;

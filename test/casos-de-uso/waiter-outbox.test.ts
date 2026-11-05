@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockDisco = new Map<string, unknown>();
 
-jest.mock('@/utils/offline-cache', () => ({
+jest.mock('@/data/offline-cache', () => ({
   readCache: jest.fn(async (key: string) => (mockDisco.has(key) ? { data: mockDisco.get(key), savedAt: Date.now() } : null)),
   writeCache: jest.fn((key: string, data: unknown) => {
     mockDisco.set(key, JSON.parse(JSON.stringify(data)));

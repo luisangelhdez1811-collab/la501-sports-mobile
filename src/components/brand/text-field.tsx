@@ -33,7 +33,7 @@ export function TextField({
     <View style={styles.container}>
       <Text style={[styles.label, { color: colors.textSecondary }]}>
         {label}
-        {required && <Text style={styles.required}> *</Text>}
+        {required && <Text style={[styles.required, { color: colors.accent }]}> *</Text>}
       </Text>
       <View
         style={[
@@ -83,7 +83,7 @@ export function TextField({
           </Pressable>
         )}
       </View>
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
       {!error && !!hint && <Text style={[styles.hint, { color: colors.textSecondary }]}>{hint}</Text>}
     </View>
   );
@@ -100,7 +100,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   required: {
-    color: Brand.orange,
   },
   inputRow: {
     minHeight: 54,
@@ -118,7 +117,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   error: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 13,
   },

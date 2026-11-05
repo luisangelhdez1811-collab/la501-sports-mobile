@@ -1,121 +1,106 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
-import { trackOrder, type OrderStatus } from '@/api/account';
-import { errorMessage } from '@/api/client';
-import { formatMoney } from '@/components/account/orders-list';
+import type { Tracking } from '@/api/account';
+import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormCard } from '@/components/brand/form-card';
 import { FormMessage } from '@/components/brand/form-message';
-import { StatusBadge } from '@/components/brand/status-badge';
-import { BrandTitle } from '@/components/brand/typography';
+import { TextLink } from '@/components/brand/text-link';
+import { ProviderCard } from '@/components/legal/provider-card';
+import { HoursNotice } from '@/components/order/hours-notice';
+import { InvoiceCard } from '@/components/order/invoice-card';
+import { OrderTicket } from '@/components/order/order-ticket';
 import { Brand, BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
+import { FINAL_STATUSES, useOrderTracking } from '@/hooks/use-order-tracking';
+import { useStorePolicy } from '@/hooks/use-store-policy';
 
-const POLL_MS = 10000;
+const CARD_NOT_CONFIRMED =
+  'Tu pago con tarjeta no se ha confirmado, así que tu pedido todavía no se envía a cocina. ' +
+  'Si ya pagaste, espera unos minutos; no vuelvas a pagar.';
 
-const STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
-  { status: 'pending', label: 'Recibido', emoji: '🧾' },
-  { status: 'paid', label: 'Pagado', emoji: '💳' },
-  { status: 'ready', label: 'Listo', emoji: '🍔' },
-  { status: 'delivering', label: 'En camino', emoji: '🛵' },
-  { status: 'delivered', label: 'Entregado', emoji: '✅' },
-];
-
-type Tracking = Awaited<ReturnType<typeof trackOrder>>;
+function refundMessage(tracking: Tracking) {
+  if (tracking.refundStatus === 'refunded') {
+    return 'Te devolvimos el pago a tu tarjeta; según tu banco puede tardar de 5 a 10 días hábiles en verse.';
+  }
+  if (tracking.refundStatus === 'manual') {
+    return 'Haremos la devolución en máximo 5 días hábiles; si no la ves, contáctanos.';
+  }
+  return null;
+}
 
 export default function OrderTrackingScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const { colors } = useBrandTheme();
-  const [tracking, setTracking] = useState<Tracking | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const policy = useStorePolicy();
+  const { tracking, error, cancelling, cancel: cancelOrder, print } = useOrderTracking(token);
 
-  // Refreshes every few seconds until the order is delivered or cancelled.
-  useEffect(() => {
-    let controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
+  const cancel = () => {
+    Alert.alert(
+      '¿Cancelar tu pedido?',
+      tracking?.paymentMethod === 'tarjeta' ? 'Si pagaste con tarjeta te devolvemos el dinero.' : 'Tu pedido no se preparará.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, cancelar',
+          style: 'destructive',
+          onPress: cancelOrder,
+        },
+      ],
+    );
+  };
 
-    const load = () => {
-      controller = new AbortController();
-      trackOrder(token, controller.signal)
-        .then((data) => {
-          setTracking(data);
-          setError(null);
-          if (data.status !== 'delivered' && data.status !== 'cancelled') {
-            timer = setTimeout(load, POLL_MS);
-          }
-        })
-        .catch((err: unknown) => {
-          if (controller.signal.aborted) return;
-          setError(errorMessage(err));
-          timer = setTimeout(load, POLL_MS * 3);
-        });
-    };
-    load();
-
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [token]);
-
-  const currentIndex = tracking ? STEPS.findIndex((s) => s.status === tracking.status) : -1;
+  const cardNotConfirmed =
+    tracking?.paymentMethod === 'tarjeta' && (tracking.status === 'pending' || tracking.status === 'failed');
+  const refund = tracking ? refundMessage(tracking) : null;
+  const waitingToStart = tracking?.status === 'pending' || tracking?.status === 'paid';
 
   return (
     <BrandScreen showBack>
-      <BrandTitle lead="Tu" accent="pedido" />
       {!!error && <FormMessage type="error">{error}</FormMessage>}
       {!tracking && !error && <ActivityIndicator color={Brand.orange} size="large" />}
       {tracking && (
         <FormCard>
-          <View style={styles.summary}>
-            <View>
-              {!!tracking.folio && (
-                <Text style={[styles.folio, { color: colors.text }]}>#{tracking.folio}</Text>
-              )}
-              {tracking.total > 0 && (
-                <Text style={[styles.total, { color: colors.textSecondary }]}>
-                  {formatMoney(tracking.total)}
-                </Text>
-              )}
-            </View>
-            <StatusBadge status={tracking.status} />
+          {cardNotConfirmed && (
+            <FormMessage type={tracking.status === 'failed' ? 'error' : 'info'}>
+              {tracking.status === 'failed' ? `Mercado Pago rechazó el pago. ${CARD_NOT_CONFIRMED}` : CARD_NOT_CONFIRMED}
+            </FormMessage>
+          )}
+          {tracking.status === 'cancelled' && (
+            <>
+              <FormMessage type="error">Este pedido fue cancelado.</FormMessage>
+              {!!refund && <FormMessage type="info">{refund}</FormMessage>}
+            </>
+          )}
+
+          <OrderTicket tracking={tracking} />
+
+          {waitingToStart && <HoursNotice context="order" />}
+
+          {tracking.canCancel && tracking.status !== 'cancelled' && (
+            <BrandButton title="Cancelar pedido" variant="danger" onPress={cancel} loading={cancelling} />
+          )}
+
+          {!FINAL_STATUSES.includes(tracking.status) && (
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              Esta pantalla se actualiza sola. Si tienes la app abierta, te avisamos con una notificación cuando tu
+              pedido se entregue al repartidor y vaya en camino.
+            </Text>
+          )}
+
+          <View style={styles.actions}>
+            <BrandButton title="Imprimir ticket" variant="secondary" onPress={print} style={styles.action} />
+            <BrandButton title="Volver al menú" onPress={() => router.navigate('/')} style={styles.action} />
+          </View>
+          <View style={styles.center}>
+            <TextLink label="Ver mis pedidos anteriores" onPress={() => router.navigate('/pedidos')} />
           </View>
 
-          {tracking.status === 'cancelled' ? (
-            <FormMessage type="error">Este pedido fue cancelado.</FormMessage>
-          ) : (
-            <View style={styles.steps}>
-              {STEPS.map((step, index) => {
-                const done = index <= currentIndex;
-                return (
-                  <View key={step.status} style={styles.step}>
-                    <View
-                      style={[
-                        styles.dot,
-                        done
-                          ? { backgroundColor: Brand.orange, borderColor: Brand.orange }
-                          : { borderColor: colors.border },
-                      ]}>
-                      <Text style={[styles.dotEmoji, !done && styles.dotPending]}>{step.emoji}</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.stepLabel,
-                        { color: done ? colors.text : colors.textSecondary },
-                        index === currentIndex && { color: Brand.orange },
-                      ]}>
-                      {step.label}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
+          {tracking.status === 'delivered' && !!tracking.folio && (
+            <InvoiceCard folio={tracking.folio} instructions={policy.invoice.instructions} email={policy.invoice.email} />
           )}
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            Esta pantalla se actualiza sola.
-          </Text>
+          <ProviderCard provider={policy.provider} />
         </FormCard>
       )}
     </BrandScreen>
@@ -123,46 +108,15 @@ export default function OrderTrackingScreen() {
 }
 
 const styles = StyleSheet.create({
-  summary: {
+  actions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 10,
+  },
+  action: {
+    flex: 1,
+  },
+  center: {
     alignItems: 'center',
-  },
-  folio: {
-    fontFamily: BrandFonts.bodyBold,
-    fontSize: 22,
-  },
-  total: {
-    fontFamily: BrandFonts.bodyMedium,
-    fontSize: 15,
-  },
-  steps: {
-    gap: 14,
-  },
-  step: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  dot: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotEmoji: {
-    fontSize: 20,
-  },
-  dotPending: {
-    opacity: 0.35,
-  },
-  stepLabel: {
-    fontFamily: BrandFonts.labelBold,
-    fontSize: 17,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
   hint: {
     fontFamily: BrandFonts.body,

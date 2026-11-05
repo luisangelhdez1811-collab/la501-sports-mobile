@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,15 +14,32 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getProductDetail, type ProductDetail } from '@/api/catalog';
-import { formatMoney } from '@/components/account/orders-list';
+import type { AlcoholPolicy } from '@/api/info';
+import { formatMoney, formatPrice } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
 import { ImagePlaceholder } from '@/components/brand/image-placeholder';
+import { AlcoholNotice } from '@/components/legal/alcohol-notice';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
+import { isAlcoholicProduct } from '@/domain/checkout-rules';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import type { Ingredient, Product } from '@/types/product';
-import { getCachedDetail, loadDetails, saveDetail } from '@/data/product-details';
-import { menuImage } from '@/utils/image-source';
+import { useProductDetail } from '@/hooks/use-product-detail';
+import type { Ingredient, MenuOption, OptionGroup, Product } from '@/types/product';
+import {
+  addOne,
+  canAddMore,
+  countOf,
+  createSelection,
+  groupRule,
+  groupTotal,
+  missingChoices,
+  reminders,
+  removeOne,
+  selectVariant,
+  toggle,
+  unitPrice,
+  type Selection,
+} from '@/domain/menu-options';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type ProductDetailSheetProps = {
   product: Product | null;
@@ -31,7 +48,7 @@ type ProductDetailSheetProps = {
    * Present → ordering mode ("Arma tu pedido"): ingredient checklist, comments and
    * Cancelar / Agregar al pedido. Absent → read-only menu card.
    */
-  onAdd?: (product: Product, excluded: Ingredient[], notes: string, quantity: number) => void;
+  onAdd?: (product: Product, excluded: Ingredient[], notes: string, quantity: number, selection: Selection) => void;
   /** Ordering mode: choices already made for this dish (e.g. editing a table's order). */
   initialExcluded?: Ingredient[];
   initialNotes?: string;
@@ -44,10 +61,13 @@ type ProductDetailSheetProps = {
   confirmLabel?: string;
   /** Who the checklist speaks to, e.g. "Desmarca lo que el cliente no quiera." */
   ingredientsHint?: string;
+  /** Customer menu: legend on drinks with alcohol, and no adding while sales are closed. */
+  alcohol?: AlcoholPolicy;
 };
 
 const ingredientKey = (ingredient: Ingredient) => String(ingredient.id ?? ingredient.name);
 const MAX_QUANTITY = 50;
+const MAX_NOTES = 100;
 
 function IngredientToggle({
   ingredient,
@@ -73,7 +93,7 @@ function IngredientToggle({
         style={[
           styles.box,
           included
-            ? { backgroundColor: Brand.orange, borderColor: Brand.orange }
+            ? { backgroundColor: Brand.orangeFill, borderColor: Brand.orange }
             : { borderColor: colors.textSecondary },
         ]}>
         {included && (
@@ -92,6 +112,66 @@ function IngredientToggle({
   );
 }
 
+/** One option of a list (sauce, fries…); with repeats allowed, a − n + counter once picked. */
+function OptionChoice({
+  group,
+  option,
+  selection,
+  onChange,
+}: {
+  group: OptionGroup;
+  option: MenuOption;
+  selection: Selection;
+  onChange: (next: Selection) => void;
+}) {
+  const { colors } = useBrandTheme();
+  const count = countOf(selection, option);
+  const detail = [option.detail, option.price > 0 ? `+${formatPrice(option.price)}` : ''].filter(Boolean).join(' · ');
+  const more = canAddMore(group, option, selection);
+
+  return (
+    <View
+      style={[
+        styles.ingredient,
+        count > 0
+          ? { backgroundColor: `${Brand.orange}1A`, borderColor: Brand.orange }
+          : { backgroundColor: colors.background, borderColor: colors.border },
+      ]}>
+      <Pressable
+        accessibilityRole={group.max === 1 ? 'radio' : 'checkbox'}
+        accessibilityState={{ checked: count > 0 }}
+        accessibilityLabel={[option.name, detail].filter(Boolean).join(', ')}
+        onPress={() => onChange(toggle(group, option, selection))}
+        style={styles.optionMain}>
+        <Text style={[styles.ingredientText, { color: colors.text }]}>{option.name}</Text>
+        {!!detail && <Text style={[styles.optionDetail, { color: colors.textSecondary }]}>{detail}</Text>}
+      </Pressable>
+      {group.maxPerOption > 1 && count > 0 && (
+        <View style={styles.optionStepper}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Quitar una ${option.name}`}
+            hitSlop={6}
+            onPress={() => onChange(removeOne(option, selection))}
+            style={[styles.optionStep, { borderColor: colors.border }]}>
+            <Text style={[styles.optionStepText, { color: colors.text }]}>−</Text>
+          </Pressable>
+          <Text style={[styles.optionCount, { color: colors.text }]}>{count}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Agregar otra ${option.name}`}
+            hitSlop={6}
+            disabled={!more}
+            onPress={() => onChange(addOne(group, option, selection))}
+            style={[styles.optionStep, { borderColor: colors.border, opacity: more ? 1 : 0.35 }]}>
+            <Text style={[styles.optionStepText, { color: colors.text }]}>+</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
 /** Dish card: full name, description, ingredients and price; optionally customize and add. */
 export function ProductDetailSheet({
   product,
@@ -104,50 +184,26 @@ export function ProductDetailSheet({
   withQuantity = false,
   initialQuantity = 1,
   onRemove,
+  alcohol,
 }: ProductDetailSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
-  const [detail, setDetail] = useState<ProductDetail | null>(null);
-  const [detailFailed, setDetailFailed] = useState(false);
+  const { detail, loading: loadingDetail } = useProductDetail(product);
   // Starting choices are read when the sheet mounts; give it a `key` per dish to reset them.
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set((initialExcluded ?? []).map(ingredientKey)));
   const [notes, setNotes] = useState(initialNotes);
   const [quantity, setQuantity] = useState(initialQuantity);
+  // Size and options picked; null = still the dish's starting choice.
+  const [picked, setPicked] = useState<Selection | null>(null);
+  const selection = picked ?? (product ? createSelection(product) : { variantId: null, counts: {} });
 
   const ordering = !!onAdd;
-  // Only regular dishes have a detail endpoint (promotions don't).
-  const productId = product?.kind === 'product' ? product.id : null;
 
-  useEffect(() => {
-    if (productId === null) return;
-    const controller = new AbortController();
-
-    (async () => {
-      // Saved details show instantly (and are all there is offline).
-      await loadDetails();
-      if (controller.signal.aborted) return;
-      const cached = getCachedDetail(productId);
-      if (cached) {
-        setDetail(cached);
-        return;
-      }
-      try {
-        const data = await getProductDetail(productId, controller.signal);
-        saveDetail(productId, data);
-        setDetail(data);
-      } catch {
-        if (!controller.signal.aborted) setDetailFailed(true);
-      }
-    })();
-
-    return () => controller.abort();
-  }, [productId]);
 
   const close = () => {
-    setDetail(null);
-    setDetailFailed(false);
     setExcluded(new Set());
     setNotes('');
+    setPicked(null);
     onClose();
   };
 
@@ -164,7 +220,7 @@ export function ProductDetailSheet({
   const add = () => {
     if (!product || !onAdd) return;
     const removed = (detail?.ingredients ?? []).filter((i) => excluded.has(ingredientKey(i)));
-    onAdd(product, removed, notes, withQuantity ? quantity : 1);
+    onAdd(product, removed, notes, withQuantity ? quantity : 1, selection);
     close();
   };
 
@@ -173,11 +229,16 @@ export function ProductDetailSheet({
     close();
   };
 
-  const loadingDetail = productId !== null && !detail && !detailFailed;
   const meta = [product?.category, detail?.subcategory].filter(Boolean).join(' · ');
   const ingredients = detail?.ingredients ?? [];
   // Checkout needs the server id; unavailable dishes can't be ordered either.
-  const canOrder = !!product && product.available && product.id !== null;
+  const withAlcohol = !!alcohol && !!product && isAlcoholicProduct(product);
+  const alcoholClosed = withAlcohol && !alcohol.salesOpen;
+  const canOrder = !!product && product.available && product.id !== null && !alcoholClosed;
+  // Required lists block adding; included lists left empty are only reminded.
+  const missing = product ? missingChoices(product, selection) : [];
+  const forgotten = product ? reminders(product, selection) : [];
+  const price = product ? unitPrice(product, selection) : 0;
 
   return (
     <Modal visible={!!product} transparent animationType="slide" onRequestClose={close} statusBarTranslucent>
@@ -196,7 +257,7 @@ export function ProductDetailSheet({
                     source={menuImage(product.image)}
                     style={StyleSheet.absoluteFill}
                     contentFit="cover"
-                    transition={200}
+                    transition={menuImageTransition(product.image)}
                     accessibilityIgnoresInvertColors
                   />
                 ) : (
@@ -216,7 +277,7 @@ export function ProductDetailSheet({
 
               <View style={styles.body}>
                 <View style={styles.titleBlock}>
-                  {!!meta && <Text style={styles.meta}>{meta}</Text>}
+                  {!!meta && <Text style={[styles.meta, { color: colors.accent }]}>{meta}</Text>}
                   <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">
                     {product.name}
                   </Text>
@@ -229,7 +290,7 @@ export function ProductDetailSheet({
                       },
                     ]}>
                     <View style={[styles.dot, { backgroundColor: product.available ? Brand.greenLight : Brand.red }]} />
-                    <Text style={[styles.availabilityText, { color: product.available ? Brand.greenLight : Brand.red }]}>
+                    <Text style={[styles.availabilityText, { color: product.available ? colors.success : colors.danger }]}>
                       {product.available ? 'Disponible' : 'Agotado por ahora'}
                     </Text>
                   </View>
@@ -241,6 +302,56 @@ export function ProductDetailSheet({
                     <Text style={[styles.description, { color: colors.text }]}>{product.description}</Text>
                   </View>
                 )}
+
+                {ordering && product.variants.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Presentación</Text>
+                    <View style={styles.grid}>
+                      {product.variants.map((variant) => {
+                        const on = selection.variantId === variant.id;
+                        return (
+                          <Pressable
+                            key={variant.id}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: on }}
+                            accessibilityLabel={`${variant.name}, ${formatPrice(variant.price)}`}
+                            onPress={() => setPicked(selectVariant(selection, variant.id))}
+                            style={[
+                              styles.ingredient,
+                              styles.optionMain,
+                              on
+                                ? { backgroundColor: `${Brand.orange}1A`, borderColor: Brand.orange }
+                                : { backgroundColor: colors.background, borderColor: colors.border },
+                            ]}>
+                            <Text style={[styles.ingredientText, { color: colors.text }]}>{variant.name}</Text>
+                            <Text style={[styles.optionDetail, { color: colors.success }]}>{formatPrice(variant.price)}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {ordering &&
+                  product.optionGroups.map((group) => (
+                    <View key={group.id} style={styles.section}>
+                      <View style={styles.groupHead}>
+                        <Text style={[styles.sectionTitle, styles.groupTitle, { color: colors.textSecondary }]}>{group.label}</Text>
+                        <Text
+                          style={[
+                            styles.groupRule,
+                            { color: groupTotal(group, selection) < group.min ? colors.danger : colors.textSecondary },
+                          ]}>
+                          {groupRule(group)}
+                        </Text>
+                      </View>
+                      <View style={styles.grid}>
+                        {group.options.map((option) => (
+                          <OptionChoice key={option.id} group={group} option={option} selection={selection} onChange={setPicked} />
+                        ))}
+                      </View>
+                    </View>
+                  ))}
 
                 {loadingDetail && <ActivityIndicator color={Brand.orange} style={styles.loader} />}
 
@@ -286,28 +397,34 @@ export function ProductDetailSheet({
                     <TextInput
                       value={notes}
                       onChangeText={setNotes}
-                      placeholder="Ej: papas extra, salsa extra, más picante, sin sal…"
+                      // Only things that cost nothing: paid extras are picked as options, with their price.
+                      placeholder="Ej: sin sal, más picante, término de la carne…"
                       placeholderTextColor={colors.textSecondary}
                       selectionColor={Brand.orange}
                       multiline
-                      maxLength={300}
+                      maxLength={MAX_NOTES}
                       style={[
                         styles.notes,
                         { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
                       ]}
                       accessibilityLabel="Comentarios para la cocina"
                     />
+                    <Text style={[styles.counter, { color: colors.textSecondary }]}>
+                      {notes.length}/{MAX_NOTES}
+                    </Text>
                   </View>
                 )}
 
                 <View style={[styles.priceRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Precio</Text>
                   <Text style={[styles.price, { color: colors.text }]}>
-                    <Text style={{ color: Brand.orange }}>$</Text>
-                    {formatMoney(product.price).slice(1)}
+                    <Text style={{ color: colors.accent }}>$</Text>
+                    {formatMoney(price).slice(1)}
                     <Text style={[styles.currency, { color: colors.textSecondary }]}> {product.currency}</Text>
                   </Text>
                 </View>
+
+                {withAlcohol && <AlcoholNotice legend={alcohol.legend} />}
 
               </View>
             </ScrollView>
@@ -315,6 +432,19 @@ export function ProductDetailSheet({
             {/* Always in reach, without scrolling past the ingredients. */}
             {ordering && (
               <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+                {alcoholClosed ? (
+                  <Text style={[styles.notice, { color: colors.warning }]} accessibilityLiveRegion="polite">
+                    {alcohol.closedMessage}
+                  </Text>
+                ) : missing.length > 0 ? (
+                  <Text style={[styles.notice, { color: colors.danger }]} accessibilityLiveRegion="polite">
+                    {missing[0]}
+                  </Text>
+                ) : (
+                  forgotten.length > 0 && (
+                    <Text style={[styles.notice, { color: colors.warning }]}>Sin elegir: {forgotten.join(', ')}. Puedes agregarlo así.</Text>
+                  )
+                )}
                 {withQuantity && canOrder && (
                   <View style={styles.stepper}>
                     <Pressable
@@ -349,13 +479,13 @@ export function ProductDetailSheet({
                       !canOrder
                         ? 'No disponible'
                         : withQuantity
-                          ? `${confirmLabel} · ${formatMoney(product.price * quantity)}`
+                          ? `${confirmLabel} · ${formatMoney(price * quantity)}`
                           : confirmLabel
                     }
                     variant="action"
                     icon={canOrder ? { ios: 'cart.badge.plus', android: 'add_shopping_cart', web: 'add_shopping_cart' } : undefined}
                     onPress={add}
-                    disabled={!canOrder || loadingDetail}
+                    disabled={!canOrder || loadingDetail || missing.length > 0}
                     style={styles.confirm}
                   />
                 </View>
@@ -452,7 +582,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   meta: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 13,
     letterSpacing: 2,
@@ -552,6 +681,68 @@ const styles = StyleSheet.create({
   },
   struck: {
     textDecorationLine: 'line-through',
+  },
+  optionMain: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    gap: 2,
+  },
+  optionDetail: {
+    fontFamily: BrandFonts.body,
+    fontSize: 12,
+  },
+  optionStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  optionStep: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionStepText: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  optionCount: {
+    minWidth: 14,
+    textAlign: 'center',
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+  },
+  groupHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  groupTitle: {
+    flex: 1,
+  },
+  groupRule: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 12,
+    paddingTop: 2,
+  },
+  counter: {
+    alignSelf: 'flex-end',
+    marginTop: -4,
+    fontFamily: BrandFonts.body,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+  },
+  notice: {
+    fontFamily: BrandFonts.bodyBold,
+    fontSize: 13,
+    lineHeight: 18,
   },
   notes: {
     minHeight: 96,

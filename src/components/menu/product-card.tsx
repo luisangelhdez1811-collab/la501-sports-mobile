@@ -6,7 +6,7 @@ import { ImagePlaceholder } from '@/components/brand/image-placeholder';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import type { Product } from '@/types/product';
-import { menuImage } from '@/utils/image-source';
+import { menuImage, menuImageTransition } from '@/utils/image-source';
 
 type ProductCardProps = {
   product: Product;
@@ -36,7 +36,7 @@ export function ProductCard({ product, width, onPress, actionLabel = 'Ver detall
             source={menuImage(product.image)}
             style={styles.image}
             contentFit="cover"
-            transition={200}
+            transition={menuImageTransition(product.image)}
             cachePolicy="memory-disk"
             accessibilityIgnoresInvertColors
           />
@@ -48,7 +48,7 @@ export function ProductCard({ product, width, onPress, actionLabel = 'Ver detall
         </View>
         {!product.available && (
           <View style={[styles.soldOut, { backgroundColor: colors.scrim }]}>
-            <Text style={styles.soldOutText}>Agotado</Text>
+            <Text style={[styles.soldOutText, { color: colors.danger }]}>Agotado</Text>
           </View>
         )}
       </View>
@@ -63,11 +63,11 @@ export function ProductCard({ product, width, onPress, actionLabel = 'Ver detall
           </Text>
         )}
         <View style={styles.more}>
-          <Text style={styles.moreText}>{actionLabel}</Text>
+          <Text style={[styles.moreText, { color: colors.accent }]}>{actionLabel}</Text>
           <SymbolView
             name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
             size={12}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
           />
         </View>
       </View>
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     borderRadius: Radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -112,7 +112,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   soldOutText: {
-    color: Brand.red,
     fontFamily: BrandFonts.labelBold,
     fontSize: 16,
     letterSpacing: 3,
@@ -146,7 +145,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   moreText: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 13,
     letterSpacing: 1.2,

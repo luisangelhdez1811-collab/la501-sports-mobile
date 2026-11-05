@@ -21,18 +21,18 @@ export function ScheduleCard({ hours, showIcon = false }: { hours: WeekHours; sh
             <SymbolView name={{ ios: 'clock.fill', android: 'schedule', web: 'schedule' }} size={20} tintColor={Brand.white} />
           </View>
         )}
-        <Text style={[styles.title, showIcon && { color: colors.text, fontSize: 20 }]}>Horario</Text>
+        <Text style={[styles.title, { color: colors.accent }, showIcon && { color: colors.text, fontSize: 20 }]}>Horario</Text>
       </View>
       {WEEK_ORDER.map((day) => {
         const h = hours[day];
         const isToday = day === today;
         return (
           <View key={day} style={[styles.row, { borderTopColor: colors.border }]}>
-            <Text style={[styles.day, { color: isToday ? Brand.orange : colors.textSecondary }]}>
+            <Text style={[styles.day, { color: isToday ? colors.accent : colors.textSecondary }]}>
               {WEEKDAYS[day]}
               {isToday ? ' · hoy' : ''}
             </Text>
-            <Text style={[styles.hours, { color: h ? colors.text : Brand.red }]}>
+            <Text style={[styles.hours, { color: h ? colors.text : colors.danger }]}>
               {h ? `${formatTime12(h.open)} – ${formatTime12(h.close)}` : 'Cerrado'}
             </Text>
           </View>
@@ -64,7 +64,6 @@ const styles = StyleSheet.create({
     experimental_backgroundImage: `linear-gradient(135deg, ${Brand.orange}, ${Brand.orangeDark})`,
   },
   title: {
-    color: Brand.orange,
     fontFamily: BrandFonts.labelBold,
     fontSize: 15,
     letterSpacing: 2.5,

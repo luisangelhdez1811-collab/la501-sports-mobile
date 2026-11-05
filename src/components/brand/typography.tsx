@@ -24,7 +24,7 @@ export function BrandTitle({ lead, accent, accentColor = 'orange', size = 44, al
         { color: colors.text, fontSize: size, lineHeight: size * 1.1, textAlign: align },
       ]}>
       {lead}{' '}
-      <Text style={{ color: accentColor === 'orange' ? Brand.orange : Brand.greenLight }}>
+      <Text style={{ color: accentColor === 'orange' ? colors.accent : colors.success }}>
         {accent}
       </Text>
     </Text>
@@ -48,7 +48,7 @@ export function DividerLabel({ children }: { children: string }) {
   return (
     <View style={styles.divider}>
       <View style={[styles.line, { backgroundColor: colors.border }]} />
-      <Text style={styles.dividerText}>{children}</Text>
+      <Text style={[styles.dividerText, { color: colors.accent }]}>{children}</Text>
       <View style={[styles.line, { backgroundColor: colors.border }]} />
     </View>
   );
@@ -89,7 +89,6 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
   },
   dividerText: {
-    color: Brand.orange,
     fontFamily: BrandFonts.label,
     fontSize: 14,
     letterSpacing: 4,

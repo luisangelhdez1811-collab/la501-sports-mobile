@@ -31,6 +31,14 @@ module.exports = defineConfig([
     ),
   },
   {
+    // Small helpers (validation, hours, image URLs) any layer may use: pure, like the domain.
+    files: ['src/utils/**/*.ts'],
+    rules: forbid(
+      ['react', 'react-native', 'expo-*', '@expo/*', '@/app', '@/components', '@/hooks', '@/data', '@/api'],
+      'Utilidades: funciones puras; el almacenamiento va en src/data.',
+    ),
+  },
+  {
     files: ['src/api/**/*.ts'],
     rules: forbid(['@/app', '@/components', '@/hooks', '@/data'], 'API: solo habla con el servidor; no conoce la interfaz.'),
   },
@@ -43,7 +51,15 @@ module.exports = defineConfig([
     rules: forbid(['@/app', '@/components'], 'ViewModels: exponen estado; no dibujan pantallas.'),
   },
   {
+    // MVVM: a view draws and reacts; data and the server are reached through a hook.
     files: ['src/components/**/*.{ts,tsx}'],
-    rules: forbid(['@/app'], 'Componentes: no dependen de las pantallas (rutas).'),
+    rules: forbid(
+      ['@/app', '@/api', '@/data'],
+      'Componentes: no dependen de las pantallas; la API y los datos se usan desde un hook (src/hooks).',
+    ),
+  },
+  {
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: forbid(['@/api', '@/data'], 'Pantallas: la API y los datos se usan desde un hook (src/hooks).'),
   },
 ]);

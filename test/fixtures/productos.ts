@@ -14,6 +14,11 @@ export function platillo(datos: Partial<Product> = {}): Product {
     category: 'Hamburguesas',
     subcategory: '',
     available: true,
+    section: 'comidas',
+    station: 'cocina',
+    presentation: '',
+    variants: [],
+    optionGroups: [],
     ...datos,
   };
 }

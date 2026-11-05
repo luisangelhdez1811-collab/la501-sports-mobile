@@ -218,9 +218,11 @@ export function PanelState({
 
 /** Small coloured label, e.g. a reservation status or message type. */
 export function Tag({ label, color }: { label: string; color: string }) {
+  const { colors } = useBrandTheme();
+  // The color tints the pill; the label stays plain text so it reads in both modes (AA).
   return (
-    <View style={[styles.tag, { backgroundColor: `${color}1F`, borderColor: `${color}55` }]}>
-      <Text style={[styles.tagText, { color }]}>{label}</Text>
+    <View style={[styles.tag, { backgroundColor: `${color}1F`, borderColor: color }]}>
+      <Text style={[styles.tagText, { color: colors.text }]}>{label}</Text>
     </View>
   );
 }

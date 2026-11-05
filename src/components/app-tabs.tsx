@@ -13,7 +13,7 @@ export default function AppTabs() {
       backgroundColor={colors.header}
       indicatorColor={colors.border}
       iconColor={{ default: colors.textSecondary, selected: Brand.orange }}
-      labelStyle={{ default: { color: colors.textSecondary }, selected: { color: Brand.orange } }}>
+      labelStyle={{ default: { color: colors.textSecondary }, selected: { color: colors.accent } }}>
       <NativeTabs.Trigger name="(pedir)">
         <NativeTabs.Trigger.Label>Pedir</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'bicycle', selected: 'bicycle' }} md="delivery_dining" />

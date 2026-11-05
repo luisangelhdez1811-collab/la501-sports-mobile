@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     borderColor: Brand.orange,
   },
   avatarFallback: {
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     height: 20,
     paddingHorizontal: 5,
     borderRadius: Radius.pill,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

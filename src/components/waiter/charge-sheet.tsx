@@ -13,30 +13,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ApiError, errorMessage } from '@/api/client';
-import { getTable, KITCHEN_PENDING_STATUS, PAYMENT_METHODS, type PaymentMethod, type TableOrder } from '@/api/waiter';
-import { formatMoney } from '@/components/account/orders-list';
+import type { TableOrder } from '@/api/waiter';
+import { formatMoney } from '@/domain/money';
 import { FormMessage } from '@/components/brand/form-message';
 import { TextField } from '@/components/brand/text-field';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
 import { createBills, coversTable, orderKey, ordersTotal, type Bill } from '@/domain/bills';
-import { chargeOrders, CHARGE_NEEDS_CONNECTION, CHARGE_NEEDS_SENT_ORDERS } from '@/data/waiter-actions';
-import { newRef, useOutbox } from '@/data/waiter-outbox';
+import { PAYMENT_METHODS } from '@/domain/payments';
+import { useBillPayment } from '@/hooks/use-bill-payment';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
-import { useIsOffline } from '@/hooks/use-connectivity';
-import { openOrders } from '@/domain/waiter-tables';
+import { useOpenOrders } from '@/hooks/use-table-order';
 
 const MAX_PAYMENTS = 3;
-const AMBER = '#F59E0B';
-
-type Row = { key: number; method: PaymentMethod; amount: string };
-
-const toAmount = (text: string) => {
-  const n = Number.parseFloat(text.replace(',', '.'));
-  return Number.isFinite(n) && n > 0 ? n : 0;
-};
-const cents = (n: number) => Math.round(n * 100);
 
 export { orderKey } from '@/domain/bills';
 
@@ -61,8 +49,7 @@ type ChargeSheetProps = {
 export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) {
   const { colors } = useBrandTheme();
   const insets = useSafeAreaInsets();
-  const { entries } = useOutbox();
-  const detail = useCachedResource(`waiter-table-${table.id}`, (signal) => getTable(table.id, signal), { persist: true });
+  const { detail, orders: open } = useOpenOrders(table.id);
   // Bills are fixed once the waiter picks how to pay, so charging one doesn't reshuffle the rest.
   const [bills, setBills] = useState<Bill[] | null>(null);
   const [step, setStep] = useState(0);
@@ -70,7 +57,7 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
 
   const loading = detail.data === null && detail.loading;
   const orders = detail.data
-    ? openOrders(detail.data, table.id, entries)
+    ? open
     : // No saved copy of this table yet: one bill, as the map shows it (charged once online).
       [{ id: null, ref: null, label: 'Mesa completa', total: table.total, kitchenPending: table.kitchenPending, items: [] }];
   const choosing = bills === null && !only && orders.length > 1;
@@ -95,7 +82,7 @@ export function ChargeSheet({ table, only, onClose, onDone }: ChargeSheetProps) 
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerText}>
               <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
-                Cobrar <Text style={{ color: Brand.orange }}>Mesa {table.number}</Text>
+                Cobrar <Text style={{ color: colors.accent }}>Mesa {table.number}</Text>
               </Text>
               {!choosing && activeBills.length > 1 && (
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -209,7 +196,7 @@ function ModeButton({
         { borderColor: pressed ? Brand.green : colors.border, backgroundColor: pressed ? `${Brand.green}1A` : colors.background },
       ]}>
       <View style={[styles.modeIcon, { backgroundColor: `${Brand.green}22` }]}>
-        <SymbolView name={icon} size={24} tintColor={Brand.greenLight} />
+        <SymbolView name={icon} size={24} tintColor={colors.success} />
       </View>
       <View style={styles.modeText}>
         <Text style={[styles.modeTitle, { color: colors.text }]}>{title}</Text>
@@ -236,93 +223,45 @@ function BillPayment({
   onCharged: (outcome: string) => void;
 }) {
   const { colors } = useBrandTheme();
-  const offline = useIsOffline();
-  // One reference for every attempt at this bill: retrying after a dropped connection
-  // never charges twice.
-  const [ref] = useState(() => newRef('cobro'));
-  const [rows, setRows] = useState<Row[]>(() => [{ key: 0, method: 'efectivo', amount: bill.total.toFixed(2) }]);
-  const unsent = bill.orders.some((o) => o.unsent);
-  const [forced, setForced] = useState(() => !unsent && bill.orders.some((o) => o.kitchenPending));
-  const [reason, setReason] = useState('');
-  const [password, setPassword] = useState('');
-  const [armed, setArmed] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const askForced = forced;
-  const blocked = offline ? CHARGE_NEEDS_CONNECTION : unsent ? CHARGE_NEEDS_SENT_ORDERS : null;
-  const paid = rows.reduce((total, row) => total + toAmount(row.amount), 0);
-  const missing = cents(bill.total) - cents(paid);
-  const hasCash = rows.some((row) => row.method === 'efectivo' && toAmount(row.amount) > 0);
-  const covered = missing <= 0;
-  const forcedReady = !askForced || (reason.trim().length >= 5 && password.length > 0);
-  const canConfirm = covered && forcedReady && !submitting && !blocked;
-
-  const update = (key: number, patch: Partial<Row>) => {
-    setArmed(false);
-    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
-  };
-  const addRow = () => {
-    setArmed(false);
-    setRows((current) => [
-      ...current,
-      { key: Math.max(...current.map((r) => r.key)) + 1, method: 'tarjeta', amount: missing > 0 ? (missing / 100).toFixed(2) : '' },
-    ]);
-  };
-  const removeRow = (key: number) => {
-    setArmed(false);
-    setRows((current) => current.filter((row) => row.key !== key));
-  };
-
-  const confirm = async () => {
-    if (!canConfirm) return;
-    // First tap arms the button; the second one charges (it can't be undone).
-    if (!armed) return setArmed(true);
-    setSubmitting(true);
-    setError(null);
-    try {
-      const status = await chargeOrders({
-        tableId,
-        ref,
-        orders: bill.orders,
-        payments: rows
-          .filter((row) => toAmount(row.amount) > 0)
-          .map((row) => ({ method: row.method, amount: toAmount(row.amount) })),
-        forced: askForced ? { reason, password } : undefined,
-      });
-      onCharged(
-        status === 'applied' ? `${bill.label}: cobrado.` : `${bill.label}: cobrado y enviado a revisión del administrador.`,
-      );
-    } catch (err) {
-      if (err instanceof ApiError && err.status === KITCHEN_PENDING_STATUS && !forced) {
-        setForced(true);
-        setError('La cocina aún tiene platillos de esta cuenta. Si necesitas cobrar ya, usa el cobro forzado.');
-      } else {
-        setError(errorMessage(err));
-      }
-      setArmed(false);
-      setSubmitting(false);
-    } finally {
-      setPassword('');
-    }
-  };
+  const {
+    offline,
+    blocked,
+    rows,
+    update,
+    addRow,
+    removeRow,
+    paid,
+    missing,
+    hasCash,
+    covered,
+    forced: askForced,
+    reason,
+    setReason,
+    password,
+    setPassword,
+    armed,
+    submitting,
+    error,
+    canConfirm,
+    confirm,
+  } = useBillPayment(bill, tableId, onCharged);
 
   const summary = covered
     ? missing === 0
-      ? { text: 'Monto cubierto exactamente', color: Brand.greenLight }
-      : { text: `${hasCash ? 'Cambio a entregar' : 'Pagado de más'}: ${formatMoney(-missing / 100)}`, color: Brand.greenLight }
-    : { text: `Faltan por cubrir: ${formatMoney(missing / 100)}`, color: AMBER };
+      ? { text: 'Monto cubierto exactamente', color: colors.success }
+      : { text: `${hasCash ? 'Cambio a entregar' : 'Pagado de más'}: ${formatMoney(-missing / 100)}`, color: colors.success }
+    : { text: `Faltan por cubrir: ${formatMoney(missing / 100)}`, color: colors.warning };
   const items = bill.orders.flatMap((order) => order.items);
 
   return (
     <>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
         {!!blocked && (
-          <View style={[styles.notice, { borderColor: `${AMBER}66`, backgroundColor: `${AMBER}14` }]}>
+          <View style={[styles.notice, { borderColor: colors.warning, backgroundColor: `${colors.warning}14` }]}>
             <SymbolView
               name={offline ? { ios: 'wifi.slash', android: 'wifi_off', web: 'wifi_off' } : { ios: 'tray.and.arrow.up', android: 'cloud_upload', web: 'cloud_upload' }}
               size={16}
-              tintColor={AMBER}
+              tintColor={colors.warning}
             />
             <Text style={[styles.noticeText, { color: colors.text }]}>{blocked}</Text>
           </View>
@@ -343,17 +282,14 @@ function BillPayment({
 
         {askForced && (
           <View style={[styles.forcedBox, { borderColor: `${Brand.red}66`, backgroundColor: `${Brand.red}12` }]}>
-            <Text style={styles.forcedText}>
+            <Text style={[styles.forcedText, { color: colors.danger }]}>
               Hay platillos en preparación. Usa el cobro forzado solo si la cocina no responde o hubo una falla:
               quedará registrado con tu usuario para revisión del administrador.
             </Text>
             <TextField
               label="Motivo (obligatorio)"
               value={reason}
-              onChangeText={(v) => {
-                setReason(v);
-                setArmed(false);
-              }}
+              onChangeText={setReason}
               placeholder="Ej: la pantalla de cocina no responde"
               multiline
               maxLength={200}
@@ -361,10 +297,7 @@ function BillPayment({
             <TextField
               label="Confirma tu contraseña"
               value={password}
-              onChangeText={(v) => {
-                setPassword(v);
-                setArmed(false);
-              }}
+              onChangeText={setPassword}
               password
               autoComplete="current-password"
             />
@@ -375,7 +308,7 @@ function BillPayment({
           <Text style={[styles.section, { color: colors.textSecondary }]}>Pagos</Text>
           {rows.length < MAX_PAYMENTS && (
             <Pressable accessibilityRole="button" onPress={addRow} hitSlop={6}>
-              <Text style={styles.addPayment}>+ Dividir pago</Text>
+              <Text style={[styles.addPayment, { color: colors.accent }]}>+ Dividir pago</Text>
             </Pressable>
           )}
         </View>
@@ -395,7 +328,7 @@ function BillPayment({
                       styles.method,
                       active ? { backgroundColor: `${Brand.green}26`, borderColor: Brand.green } : { borderColor: colors.border },
                     ]}>
-                    <Text style={[styles.methodText, { color: active ? Brand.greenLight : colors.textSecondary }]}>
+                    <Text style={[styles.methodText, { color: active ? colors.success : colors.textSecondary }]}>
                       {method.label}
                     </Text>
                   </Pressable>
@@ -602,7 +535,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   forcedText: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 14,
     lineHeight: 20,
@@ -619,7 +551,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   addPayment: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
     fontSize: 15,
   },

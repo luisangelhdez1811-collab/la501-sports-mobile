@@ -7,30 +7,51 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { getPromotions } from '@/api/catalog';
-import { getRestaurantInfo } from '@/api/info';
 import { NavDrawer } from '@/components/brand/nav-drawer';
+import { LegalUpdateSheet } from '@/components/legal/legal-update-sheet';
+import { CustomerAlerts, WaiterAlerts } from '@/components/notifications/order-alerts';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { OutboxSync } from '@/components/waiter/outbox-sync';
 import { BrandPalettes } from '@/constants/brand';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { BrandThemeProvider, useBrandTheme } from '@/hooks/use-brand-theme';
-import { preloadResource } from '@/hooks/use-cached-resource';
 import { CartProvider } from '@/hooks/use-cart';
+import { useCacheCleanup } from '@/hooks/use-cached-resource';
+import { preloadPromotions } from '@/hooks/use-content';
 import { DrawerProvider } from '@/hooks/use-drawer';
+import { LegalUpdateProvider } from '@/hooks/use-legal-update';
 import { preloadMenu } from '@/hooks/use-menu';
-import { pruneRetiredCache } from '@/utils/offline-cache';
+import { useNotificationTaps } from '@/hooks/use-order-alerts';
+import { preloadRestaurantInfo } from '@/hooks/use-restaurant';
+import { preloadStorePolicy } from '@/hooks/use-store-policy';
 
 SplashScreen.preventAutoHideAsync();
+
+/** Screens open to everyone: like the cart, never stacked twice. */
+const SINGLE_SCREENS = [
+  'login',
+  'registro',
+  'recuperar',
+  'configuracion',
+  'mis-datos',
+  'terminos',
+  'aviso-privacidad',
+  'novedades',
+  'quienes-somos',
+  'reservar',
+  'ubicacion',
+] as const;
 
 export default function RootLayout() {
   return (
     <BrandThemeProvider>
       <AuthProvider>
         <CartProvider>
-          <DrawerProvider>
-            <RootNavigator />
-          </DrawerProvider>
+          <LegalUpdateProvider>
+            <DrawerProvider>
+              <RootNavigator />
+            </DrawerProvider>
+          </LegalUpdateProvider>
         </CartProvider>
       </AuthProvider>
     </BrandThemeProvider>
@@ -39,6 +60,7 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { scheme } = useBrandTheme();
+  useNotificationTaps();
   const { status, user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isWaiter = user?.role === 'mesero';
@@ -52,8 +74,7 @@ function RootNavigator() {
     Inter_700Bold,
   });
 
-  // Free space used by screens that are no longer saved offline.
-  useEffect(() => pruneRetiredCache(), []);
+  useCacheCleanup();
 
   // While the splash is showing, download what the first screens of this role use, so
   // they open with fresh data. Admin data is never preloaded: it's fetched on its screen.
@@ -61,8 +82,9 @@ function RootNavigator() {
     if (status === 'loading' || isAdmin) return;
     preloadMenu();
     if (isWaiter) return;
-    preloadResource('promotions', getPromotions);
-    preloadResource('restaurant-info', getRestaurantInfo, { persist: true });
+    preloadPromotions();
+    preloadRestaurantInfo();
+    preloadStorePolicy();
   }, [status, isAdmin, isWaiter]);
 
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -86,24 +108,34 @@ function RootNavigator() {
           {/* Every screen draws its own brand header. Each role only reaches its own
               sections; switching role (sign in / out) moves to the other set by itself.
               This is navigation only: the server checks the role on every admin request. */}
+          {/* dangerouslySingular: tapping the cart, a notification or a link again moves to
+              the screen already open instead of stacking a copy (one per order or table). */}
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Protected guard={isCustomer}>
               <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="carrito" />
-              <Stack.Screen name="checkout" />
-              <Stack.Screen name="pedido/[token]" />
+              <Stack.Screen name="carrito" dangerouslySingular />
+              <Stack.Screen name="checkout" dangerouslySingular />
+              <Stack.Screen name="pedido/[token]" dangerouslySingular />
             </Stack.Protected>
             <Stack.Protected guard={isAdmin}>
               <Stack.Screen name="admin" />
             </Stack.Protected>
             <Stack.Protected guard={isWaiter}>
               <Stack.Screen name="mesero" />
-              <Stack.Screen name="mesa/[id]" />
+              <Stack.Screen name="mesa/[id]" dangerouslySingular />
             </Stack.Protected>
+            {SINGLE_SCREENS.map((name) => (
+              <Stack.Screen key={name} name={name} dangerouslySingular />
+            ))}
           </Stack>
           <NavDrawer />
           {/* Sends the waiter's orders saved without a connection. */}
           {isWaiter && <OutboxSync />}
+          {/* Notifications on the phone: dishes ready (waiter), order on its way (customer). */}
+          {isWaiter && <WaiterAlerts />}
+          {isCustomer && <CustomerAlerts />}
+          {/* New Aviso or Terms: the customer accepts them before going on. */}
+          {isCustomer && <LegalUpdateSheet />}
         </>
       )}
       {/* Rendered last so it sits above the native tabs. */}

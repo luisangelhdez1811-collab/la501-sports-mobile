@@ -1,49 +1,15 @@
 import { SymbolView } from 'expo-symbols';
-import { useEffect } from 'react';
-import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { discardRejectedOrder, loadOutbox, retryEntry, syncOutbox, useOutbox } from '@/data/waiter-outbox';
-import { useAuth } from '@/hooks/use-auth';
+import { formatMoney } from '@/domain/money';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useIsOffline } from '@/hooks/use-connectivity';
-import { formatMoney } from '@/components/account/orders-list';
+import { useMyOutbox, useOutboxSync } from '@/hooks/use-outbox';
 
-const RETRY_MS = 30_000;
-const AMBER = '#F59E0B';
 
-/**
- * Sends the waiter's saved orders in the background: right away, when the
- * connection comes back, when the app returns to the foreground and every 30 s while
- * anything is pending. Renders nothing; mounted once in the waiter's layout.
- */
+/** Sends the waiter's saved orders in the background. Renders nothing; mounted once in the layout. */
 export function OutboxSync() {
-  const { user } = useAuth();
-  const offline = useIsOffline();
-  const { entries } = useOutbox();
-  const owner = user?.email ?? null;
-  const pending = entries.some((e) => e.owner === owner && !e.error);
-
-  useEffect(() => {
-    loadOutbox();
-  }, []);
-
-  useEffect(() => {
-    if (!offline && pending) syncOutbox(owner);
-  }, [offline, pending, owner]);
-
-  useEffect(() => {
-    if (!pending) return;
-    const timer = setInterval(() => syncOutbox(owner), RETRY_MS);
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next === 'active') syncOutbox(owner);
-    });
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
-  }, [pending, owner]);
-
+  useOutboxSync();
   return null;
 }
 
@@ -53,25 +19,20 @@ export function OutboxSync() {
  */
 export function OutboxBanner({ tableId }: { tableId?: number }) {
   const { colors } = useBrandTheme();
-  const { user } = useAuth();
-  const offline = useIsOffline();
-  const { entries, syncing } = useOutbox();
-  const mine = entries.filter((e) => e.owner === user?.email && (tableId === undefined || e.tableId === tableId));
-  const rejected = mine.filter((e) => e.error);
-  const waiting = mine.length - rejected.length;
+  const { offline, syncing, waiting, rejected, retry, discard } = useMyOutbox(tableId);
 
-  if (mine.length === 0) return null;
+  if (waiting === 0 && rejected.length === 0) return null;
 
   return (
     <View style={styles.stack}>
       {waiting > 0 && (
         <View
           accessibilityRole="alert"
-          style={[styles.banner, { borderColor: `${AMBER}66`, backgroundColor: `${AMBER}14` }]}>
+          style={[styles.banner, { borderColor: colors.warning, backgroundColor: `${colors.warning}14` }]}>
           {syncing ? (
-            <ActivityIndicator color={AMBER} size="small" />
+            <ActivityIndicator color={colors.warning} size="small" />
           ) : (
-            <SymbolView name={{ ios: 'tray.and.arrow.up', android: 'cloud_upload', web: 'cloud_upload' }} size={18} tintColor={AMBER} />
+            <SymbolView name={{ ios: 'tray.and.arrow.up', android: 'cloud_upload', web: 'cloud_upload' }} size={18} tintColor={colors.warning} />
           )}
           <Text style={[styles.text, { color: colors.text }]}>
             <Text style={styles.strong}>
@@ -96,11 +57,11 @@ export function OutboxBanner({ tableId }: { tableId?: number }) {
             {entry.error}
           </Text>
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={() => retryEntry(entry.ref)} hitSlop={6}>
+            <Pressable accessibilityRole="button" onPress={() => retry(entry.ref)} hitSlop={6}>
               <Text style={[styles.action, { color: Brand.blue }]}>Reintentar</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => discardRejectedOrder(entry.ref)} hitSlop={6}>
-              <Text style={[styles.action, { color: Brand.red }]}>Descartar pedido</Text>
+            <Pressable accessibilityRole="button" onPress={() => discard(entry.ref)} hitSlop={6}>
+              <Text style={[styles.action, { color: colors.danger }]}>Descartar pedido</Text>
             </Pressable>
           </View>
         </View>

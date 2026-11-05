@@ -1,10 +1,8 @@
+import { router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { errorMessage } from '@/api/client';
-import { getRestaurantInfo } from '@/api/info';
-import { createReservation, type ReservationZone } from '@/api/reservations';
+import type { ReservationZone } from '@/api/reservations';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
 import { FormCard } from '@/components/brand/form-card';
@@ -16,17 +14,11 @@ import { TextField } from '@/components/brand/text-field';
 import { ScheduleCard } from '@/components/info/schedule-card';
 import { DateField, startOfDay, TimeField } from '@/components/reservation/pickers';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import {
-  DEFAULT_HOURS,
-  formatTime12,
-  bookingWindow,
-  isBookable,
-} from '@/utils/opening-hours';
-import { isEmail, isPhone, normalizePhone } from '@/utils/validation';
+import { useReservationForm, useRestaurantInfo } from '@/hooks/use-restaurant';
+import { bookingWindow, formatTime12, isBookable } from '@/utils/opening-hours';
+import { normalizePhone } from '@/utils/validation';
 
 const DAYS_AHEAD = 60;
 // Same options as the website: 1–10 people, 11 = "Más de 10 personas…" (goes to WhatsApp).
@@ -44,72 +36,41 @@ const ZONES: { value: ReservationZone; label: string; icon: SymbolViewProps['nam
   { value: 'Terraza', label: 'Terraza', icon: { ios: 'leaf.fill', android: 'park', web: 'park' } },
 ];
 
-type Errors = Partial<Record<'name' | 'phone' | 'email' | 'date' | 'time', string>>;
-
-function toIsoDate(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 export default function ReserveScreen() {
   const { colors } = useBrandTheme();
-  const { user } = useAuth();
   const offline = useIsOffline();
-  // Saved on the device so the schedule (and blocked hours) also work offline.
-  const { data: info } = useCachedResource('restaurant-info', getRestaurantInfo, { persist: true });
-  const hours = info?.hours ?? DEFAULT_HOURS;
-
-  const [name, setName] = useState(user?.name ?? '');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [date, setDate] = useState<Date | null>(null);
-  const [time, setTime] = useState<string | null>(null);
-  const [zone, setZone] = useState<ReservationZone>('General');
-  const [people, setPeople] = useState(2);
-  const [errors, setErrors] = useState<Errors>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const info = useRestaurantInfo();
+  const hours = info.hours;
+  const {
+    name,
+    setName,
+    phone,
+    setPhone,
+    email,
+    setEmail,
+    date,
+    setDate,
+    time,
+    setTime,
+    zone,
+    setZone,
+    people,
+    setPeople,
+    range,
+    errors,
+    submitting,
+    message,
+    setMessage,
+    submit,
+  } = useReservationForm(hours);
 
   const today = startOfDay(new Date());
   const maxDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + DAYS_AHEAD);
-  const range = date ? bookingWindow(date, hours) : null;
   const dayHours = date ? hours[date.getDay()] : null;
   const isGroup = people >= GROUP;
 
-  const validate = (): Errors => {
-    const next: Errors = {};
-    if (name.trim().length < 3) next.name = 'Escribe tu nombre completo.';
-    if (!isPhone(phone)) next.phone = 'El teléfono debe tener 10 dígitos.';
-    if (!isEmail(email)) next.email = 'Correo electrónico no válido.';
-    if (!date) next.date = 'Elige la fecha.';
-    // Re-checked here: the chosen time may have passed while the form was open.
-    if (!time || !isBookable(time, range)) next.time = 'Elige una hora dentro del horario de servicio.';
-    return next;
-  };
-
-  const submit = async () => {
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length > 0) {
-      return setMessage({ type: 'error', text: Object.values(next)[0] ?? 'Revisa los campos marcados.' });
-    }
-
-    setSubmitting(true);
-    setMessage(null);
-    try {
-      await createReservation({ name, phone, email, date: toIsoDate(date!), time: time!, people, zone });
-      setMessage({ type: 'success', text: 'Solicitud enviada. Espera nuestra confirmación.' });
-      setDate(null);
-      setTime(null);
-    } catch (err) {
-      setMessage({ type: 'error', text: errorMessage(err) });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const openWhatsApp = () => {
-    const number = info?.whatsapp ?? FALLBACK_WHATSAPP;
+    const number = info.whatsapp ?? FALLBACK_WHATSAPP;
     // wa.me opens the WhatsApp app when installed (or the web version) with the message ready.
     Linking.openURL(`https://wa.me/${number}?text=${encodeURIComponent(GROUP_MESSAGE)}`).catch(() =>
       setMessage({ type: 'error', text: 'No se pudo abrir WhatsApp.' }),
@@ -124,7 +85,7 @@ export default function ReserveScreen() {
         lead="Reser"
         accent="vaciones"
         accentColor="green"
-        description="Aparta tu mesa y disfruta de la mejor experiencia. Sujeto a confirmación del personal."
+        description="Aparta tu mesa y ven a disfrutar del deporte y la buena comida. Sujeto a confirmación del personal."
       />
 
       <View style={styles.body}>
@@ -133,7 +94,7 @@ export default function ReserveScreen() {
         <FormCard>
           <View style={styles.header}>
             <View style={[styles.headerIcon, { backgroundColor: `${Brand.green}1F`, borderColor: `${Brand.green}55` }]}>
-              <SymbolView name={{ ios: 'calendar', android: 'event', web: 'event' }} size={18} tintColor={Brand.greenLight} />
+              <SymbolView name={{ ios: 'calendar', android: 'event', web: 'event' }} size={18} tintColor={colors.success} />
             </View>
             <View style={styles.headerText}>
               <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
@@ -184,7 +145,6 @@ export default function ReserveScreen() {
                 setDate(next);
                 // Keep the time only if it's still bookable on the new day.
                 if (time && !isBookable(time, bookingWindow(next, hours))) setTime(null);
-                setErrors((e) => ({ ...e, date: undefined }));
               }}
               minDate={today}
               maxDate={maxDate}
@@ -193,10 +153,7 @@ export default function ReserveScreen() {
             />
             <TimeField
               value={time}
-              onChange={(next) => {
-                setTime(next);
-                setErrors((e) => ({ ...e, time: undefined }));
-              }}
+              onChange={setTime}
               range={range}
               needsDate={!date}
               hoursLabel={
@@ -208,12 +165,12 @@ export default function ReserveScreen() {
 
           <View style={styles.group}>
             <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Zona<Text style={{ color: Brand.orange }}> *</Text>
+              Zona<Text style={{ color: colors.accent }}> *</Text>
             </Text>
             <View style={styles.zones} accessibilityRole="radiogroup">
               {ZONES.map((option) => {
                 const active = option.value === zone;
-                const tint = active ? Brand.greenLight : colors.textSecondary;
+                const tint = active ? colors.success : colors.textSecondary;
                 return (
                   <Pressable
                     key={option.value}
@@ -247,7 +204,7 @@ export default function ReserveScreen() {
 
           {isGroup ? (
             <>
-              <Text style={styles.groupNote}>
+              <Text style={[styles.groupNote, { color: colors.accent }]}>
                 Para grupos grandes te redirigiremos a WhatsApp para coordinar mejor.
               </Text>
               <BrandButton
@@ -267,6 +224,13 @@ export default function ReserveScreen() {
               disabled={offline}
             />
           )}
+          <Text style={[styles.privacy, { color: colors.textSecondary }]}>
+            Usamos estos datos solo para gestionar y confirmar tu reservación. Consulta el{' '}
+            <Text style={[styles.privacyLink, { color: colors.accent }]} onPress={() => router.push('/aviso-privacidad')} accessibilityRole="link">
+              Aviso de privacidad
+            </Text>
+            .
+          </Text>
         </FormCard>
 
         <ScheduleCard hours={hours} />
@@ -275,10 +239,10 @@ export default function ReserveScreen() {
           <SymbolView
             name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' }}
             size={18}
-            tintColor={Brand.orange}
+            tintColor={colors.accent}
           />
           <Text style={[styles.noticeText, { color: colors.textSecondary }]}>
-            <Text style={styles.noticeStrong}>Importante: </Text>
+            <Text style={[styles.noticeStrong, { color: colors.accent }]}>Importante: </Text>
             Las reservaciones están sujetas a disponibilidad y confirmación por parte de nuestro personal. Te
             contactaremos para confirmar tu mesa.
           </Text>
@@ -355,7 +319,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   groupNote: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 14,
     lineHeight: 20,
@@ -376,7 +339,15 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   noticeStrong: {
-    color: Brand.orange,
     fontFamily: BrandFonts.bodyBold,
+  },
+  privacy: {
+    fontFamily: BrandFonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  privacyLink: {
+    fontFamily: BrandFonts.bodyBold,
+    textDecorationLine: 'underline',
   },
 });

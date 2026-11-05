@@ -1,35 +1,32 @@
 import { Redirect, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { errorMessage } from '@/api/client';
-import { checkout, type PaymentMethod } from '@/api/orders';
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { BrandButton } from '@/components/brand/brand-button';
 import { BrandScreen } from '@/components/brand/brand-screen';
+import { Checkbox } from '@/components/brand/checkbox';
 import { FormCard } from '@/components/brand/form-card';
 import { FormMessage } from '@/components/brand/form-message';
 import { OfflineBanner } from '@/components/brand/offline-banner';
 import { PageHero } from '@/components/brand/page-hero';
 import { TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
+import { AlcoholNotice } from '@/components/legal/alcohol-notice';
+import { ProviderCard } from '@/components/legal/provider-card';
+import { HoursNotice } from '@/components/order/hours-notice';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAuth } from '@/hooks/use-auth';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
-import { useCart } from '@/hooks/use-cart';
+import { useCheckout } from '@/hooks/use-checkout';
 import { useIsOffline } from '@/hooks/use-connectivity';
-import { isEmail, isPhone, normalizePhone } from '@/utils/validation';
-
-type Errors = Partial<Record<'name' | 'phone' | 'email' | 'address' | 'payment', string>>;
+import { normalizePhone } from '@/utils/validation';
 
 function SectionTitle({ icon, children }: { icon: SymbolViewProps['name']; children: string }) {
   const { colors } = useBrandTheme();
   return (
     <View style={styles.sectionTitle}>
       <View style={[styles.sectionIcon, { borderColor: `${Brand.orange}55`, backgroundColor: `${Brand.orange}14` }]}>
-        <SymbolView name={icon} size={18} tintColor={Brand.orange} />
+        <SymbolView name={icon} size={18} tintColor={colors.accent} />
       </View>
       <Text style={[styles.sectionText, { color: colors.text }]}>{children}</Text>
     </View>
@@ -41,23 +38,27 @@ function PaymentOption({
   title,
   subtitle,
   selected,
+  disabled = false,
   onPress,
 }: {
   emoji: string;
   title: string;
   subtitle: string;
   selected: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const { colors } = useBrandTheme();
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={[
         styles.payment,
         { backgroundColor: colors.background, borderColor: selected ? Brand.orange : colors.border },
+        disabled && styles.disabled,
       ]}>
       <View style={[styles.paymentIcon, { backgroundColor: colors.surface }]}>
         <Text style={styles.paymentEmoji}>{emoji}</Text>
@@ -75,69 +76,22 @@ function PaymentOption({
 
 export default function CheckoutScreen() {
   const { colors } = useBrandTheme();
-  const cart = useCart();
-  const { user } = useAuth();
   const offline = useIsOffline();
-  const [name, setName] = useState(user?.name ?? '');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [address, setAddress] = useState('');
-  const [payment, setPayment] = useState<PaymentMethod | null>(null);
-  const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const checkout = useCheckout();
+  const { form, consents, errors, policy } = checkout;
 
   // Nothing to pay for (e.g. back-navigation after the order was placed).
-  if (cart.items.length === 0 && !submitting) return <Redirect href="/carrito" />;
-
-  const validate = (): Errors => {
-    const next: Errors = {};
-    if (name.trim().length < 3) next.name = 'Escribe tu nombre completo.';
-    if (!isPhone(phone)) next.phone = 'El teléfono debe tener 10 dígitos.';
-    if (email.trim() && !isEmail(email)) next.email = 'Correo electrónico no válido.';
-    if (address.trim().length < 10) next.address = 'Escribe calle, número, colonia y una referencia.';
-    if (!payment) next.payment = 'Elige cómo vas a pagar.';
-    return next;
-  };
+  if (checkout.items.length === 0 && !checkout.submitting) return <Redirect href="/carrito" />;
 
   const submit = async () => {
-    // Checkout needs the server id of every item; /public/products doesn't send it yet.
-    if (cart.items.some((item) => item.product.id === null)) {
-      return setFormError(
-        'Algunos productos aún no se pueden pedir desde la app. Intenta más tarde o pide por teléfono.',
-      );
-    }
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length > 0) return setFormError('Revisa los campos marcados.');
-
-    setFormError(null);
-    setSubmitting(true);
-    try {
-      const result = await checkout({
-        items: cart.items,
-        name,
-        phone,
-        address,
-        email,
-        paymentMethod: payment!,
-      });
-      cart.clear();
-
-      // The order already exists at this point, so any outcome continues to tracking.
-      if (result.paymentMethod === 'tarjeta' && result.checkoutUrl) {
-        // The bank's page opens in the system browser (Safari / Chrome Custom Tabs), not
-        // in a WebView: the customer sees the real URL and the app can't read card data.
-        await WebBrowser.openBrowserAsync(result.checkoutUrl, {
-          dismissButtonStyle: 'close',
-          showTitle: true,
-        });
-      }
-      // Tracking polls the server, so it reflects the payment once the bank confirms it.
-      router.replace({ pathname: '/pedido/[token]', params: { token: result.trackingToken } });
-    } catch (err) {
-      setFormError(errorMessage(err));
-      setSubmitting(false);
+    const outcome = await checkout.submit();
+    if (outcome.kind === 'item_unavailable') {
+      Alert.alert('Revisa tu carrito', outcome.message, [{ text: 'Ir al carrito', onPress: () => router.back() }]);
+    } else if (outcome.kind === 'alcohol_closed') {
+      Alert.alert('Venta de alcohol cerrada', outcome.message, [
+        { text: 'Volver', style: 'cancel' },
+        { text: 'Quitar bebidas con alcohol', onPress: checkout.removeAlcohol },
+      ]);
     }
   };
 
@@ -154,15 +108,15 @@ export default function CheckoutScreen() {
         <OfflineBanner />
 
         <FormCard>
-          {!!formError && <FormMessage type="error">{formError}</FormMessage>}
+          {!!checkout.formError && <FormMessage type="error">{checkout.formError}</FormMessage>}
 
           <SectionTitle icon={{ ios: 'person', android: 'person', web: 'person' }}>Datos de contacto</SectionTitle>
           <TextField
             label="Nombre completo"
             required
             placeholder="Juan Pérez"
-            value={name}
-            onChangeText={setName}
+            value={form.name}
+            onChangeText={form.setName}
             autoComplete="name"
             textContentType="name"
             error={errors.name}
@@ -171,8 +125,8 @@ export default function CheckoutScreen() {
             label="Teléfono"
             required
             placeholder="10 dígitos"
-            value={phone}
-            onChangeText={(v) => setPhone(normalizePhone(v))}
+            value={form.phone}
+            onChangeText={(v) => form.setPhone(normalizePhone(v))}
             keyboardType="phone-pad"
             autoComplete="tel"
             textContentType="telephoneNumber"
@@ -182,8 +136,8 @@ export default function CheckoutScreen() {
           <TextField
             label="Correo (opcional)"
             placeholder="tucorreo@ejemplo.com"
-            value={email}
-            onChangeText={setEmail}
+            value={form.email}
+            onChangeText={form.setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -199,8 +153,8 @@ export default function CheckoutScreen() {
             label="Calle, número, colonia y referencia"
             required
             placeholder="Ej: Av. Principal 123, Col. Centro. Casa blanca con portón negro."
-            value={address}
-            onChangeText={setAddress}
+            value={form.address}
+            onChangeText={form.setAddress}
             multiline
             maxLength={300}
             autoComplete="street-address"
@@ -209,41 +163,70 @@ export default function CheckoutScreen() {
           />
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <SectionTitle icon={{ ios: 'creditcard', android: 'credit_card', web: 'credit_card' }}>
-            Método de pago
-          </SectionTitle>
+          <SectionTitle icon={{ ios: 'creditcard', android: 'credit_card', web: 'credit_card' }}>Método de pago</SectionTitle>
           <View style={styles.payments} accessibilityRole="radiogroup">
             <PaymentOption
               emoji="💵"
               title="Efectivo"
               subtitle="Al recibir"
-              selected={payment === 'efectivo'}
-              onPress={() => setPayment('efectivo')}
+              selected={checkout.method === 'efectivo'}
+              onPress={() => checkout.choosePayment('efectivo')}
             />
             <PaymentOption
               emoji="💳"
               title="Tarjeta"
-              subtitle="Débito o crédito · pago seguro en línea"
-              selected={payment === 'tarjeta'}
-              onPress={() => setPayment('tarjeta')}
+              subtitle={
+                policy.cardPayments ? 'Débito o crédito · pago seguro en Mercado Pago' : 'No disponible por ahora · paga en efectivo'
+              }
+              selected={checkout.method === 'tarjeta'}
+              disabled={!policy.cardPayments}
+              onPress={() => checkout.choosePayment('tarjeta')}
             />
           </View>
-          {!!errors.payment && <Text style={styles.error}>{errors.payment}</Text>}
-
-          <Text style={[styles.note, { color: colors.textSecondary }]}>
-            Este total es solo del platillo. El costo del envío lo cobra el repartidor por separado al
-            entregar tu pedido.
-          </Text>
+          {!!errors.payment && <Text style={[styles.error, { color: colors.danger }]}>{errors.payment}</Text>}
 
           <View style={[styles.totalBox, { backgroundColor: colors.background }]}>
-            <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total a pagar</Text>
+            <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total de tus productos</Text>
             <Text style={[styles.total, { color: colors.text }]}>
-              <Text style={{ color: Brand.orange }}>$</Text>
-              {formatMoney(cart.total).slice(1)}
+              <Text style={{ color: colors.accent }}>$</Text>
+              {formatMoney(checkout.total).slice(1)}
             </Text>
-            <Text style={[styles.note, styles.left, { color: colors.textSecondary }]}>
-              El restaurante confirma el total final al recibir tu pedido.
-            </Text>
+            <Text style={[styles.note, { color: colors.text }]}>{policy.feeNote}</Text>
+          </View>
+
+          {/* The kitchen works only during opening hours: said before the customer confirms. */}
+          <HoursNotice context="checkout" />
+
+          {checkout.withAlcohol && <AlcoholNotice legend={policy.alcohol.legend} />}
+
+          <View style={styles.consents}>
+            <Checkbox
+              checked={consents.deliveryTerms}
+              onChange={consents.setDeliveryTerms}
+              accessibilityLabel="Entiendo que el envío no está incluido en este total y que lo cobra el repartidor al entregar">
+              Entiendo que el envío no está incluido en este total y que lo cobra el repartidor al entregar.
+            </Checkbox>
+            {!!errors.delivery && <Text style={[styles.error, { color: colors.danger }]}>{errors.delivery}</Text>}
+
+            {checkout.adultRequired && (
+              <Checkbox
+                checked={consents.adult}
+                onChange={consents.setAdult}
+                accessibilityLabel="Confirmo que soy mayor de 18 años y que mostraré una identificación oficial al recibir">
+                Mi pedido lleva bebidas con alcohol. Confirmo que soy mayor de 18 años y que mostraré una identificación
+                oficial al recibirlo.
+              </Checkbox>
+            )}
+
+            {checkout.notesWritten && (
+              <Checkbox
+                checked={consents.healthConsent}
+                onChange={consents.setHealthConsent}
+                accessibilityLabel="Autorizo que mis notas se usen solo para preparar mi pedido">
+                Si mis notas incluyen alergias u otra información de salud, autorizo que se usen solo para preparar mi
+                pedido.
+              </Checkbox>
+            )}
           </View>
 
           <BrandButton
@@ -251,9 +234,12 @@ export default function CheckoutScreen() {
             variant="action"
             icon={{ ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' }}
             onPress={submit}
-            loading={submitting}
-            disabled={offline}
+            loading={checkout.submitting}
+            disabled={offline || checkout.submitting}
           />
+
+          {/* Before paying: who sells and how to complain (LFPC art. 76 Bis III). */}
+          <ProviderCard provider={policy.provider} />
         </FormCard>
       </View>
     </BrandScreen>
@@ -303,6 +289,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: Radius.md,
   },
+  disabled: {
+    opacity: 0.5,
+  },
   paymentIcon: {
     width: 48,
     height: 48,
@@ -337,21 +326,17 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
   },
   error: {
-    color: Brand.red,
     fontFamily: BrandFonts.bodyMedium,
     fontSize: 13,
   },
   note: {
-    fontFamily: BrandFonts.body,
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-  },
-  left: {
-    textAlign: 'left',
+    fontFamily: BrandFonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
   },
   totalBox: {
     borderRadius: Radius.md,
@@ -367,5 +352,8 @@ const styles = StyleSheet.create({
   total: {
     fontFamily: BrandFonts.display,
     fontSize: 48,
+  },
+  consents: {
+    gap: 14,
   },
 });

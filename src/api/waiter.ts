@@ -1,7 +1,10 @@
-import type { Ingredient } from '@/types/product';
+import type { Selection } from '@/domain/menu-options';
+import type { Ingredient, Station } from '@/types/product';
 
 import { ApiError, request } from './client';
+import { choicesPayload, type ChoicesOffered } from './orders';
 import { asArray, asId, asNumber, asObject, asString, pick, unwrap, type Json } from './parse';
+import type { PaymentMethod } from '@/domain/payments';
 
 /**
  * Orders and charges only count as registered when the server says so explicitly: a proxy
@@ -36,6 +39,8 @@ export type RestaurantTable = {
   /** Dishes still being prepared: charging needs the "Forzar cobro" flow. */
   kitchenPending: boolean;
   ordersCount: number;
+  /** Dishes ready (or that need no preparing) still to be taken to the table. */
+  toServe: number;
 };
 
 export type TablesMap = {
@@ -60,6 +65,7 @@ function toTable(raw: unknown): RestaurantTable | null {
     total: asNumber(pick(obj, 'total')),
     kitchenPending: Boolean(pick(obj, 'kitchen_pending', 'en_cocina', 'pending_kitchen')),
     ordersCount: asNumber(pick(obj, 'orders_count')),
+    toServe: asNumber(pick(obj, 'to_serve')),
   };
 }
 
@@ -85,7 +91,25 @@ export async function removeTable(tableId: number) {
   await request(`${WAITER}/tables/${tableId}`, { method: 'DELETE', auth: true });
 }
 
-export type TableOrderItem = { name: string; quantity: number; price: number; notes: string };
+/** preparing → ready (to take to the table) → served (already on the table). */
+export type ItemStatus = 'preparing' | 'ready' | 'served';
+
+export type TableOrderItem = {
+  /** Server id, to mark it as served; null for older servers and orders not sent yet. */
+  id: number | null;
+  name: string;
+  quantity: number;
+  price: number;
+  notes: string;
+  /** "Tipo de papa: Francesas · Salsa: Barbecue"; empty when nothing was picked. */
+  optionsSummary: string;
+  excluded: string[];
+  station: Station;
+  status: ItemStatus;
+};
+
+const ITEM_STATUSES: ItemStatus[] = ['preparing', 'ready', 'served'];
+const STATIONS: Station[] = ['cocina', 'barra', 'ninguna'];
 
 /** One send to the kitchen: in practice, one diner ("Persona 1", "Ana"). */
 export type TableOrder = {
@@ -105,11 +129,19 @@ export type TableDetail = RestaurantTable & { orders: TableOrder[] };
 
 function toOrderItem(raw: unknown): TableOrderItem {
   const obj = asObject(raw) ?? {};
+  const status = asString(obj.status) as ItemStatus;
+  const station = asString(obj.station) as Station;
   return {
+    id: asId(obj.id),
     name: asString(pick(obj, 'name', 'nombre', 'product', 'producto')),
     quantity: asNumber(pick(obj, 'quantity', 'cantidad')),
     price: asNumber(pick(obj, 'price', 'precio')),
     notes: asString(pick(obj, 'notes', 'notas')),
+    optionsSummary: asString(obj.options_summary),
+    excluded: asArray(obj.excluded_ingredients).map((i) => asString(i)).filter(Boolean),
+    station: STATIONS.includes(station) ? station : 'cocina',
+    // Older servers don't track each dish: it's "preparing" until the table says otherwise.
+    status: ITEM_STATUSES.includes(status) ? status : 'preparing',
   };
 }
 
@@ -150,6 +182,10 @@ export type KitchenItem = {
   quantity: number;
   excluded: Ingredient[];
   notes: string;
+  /** Size and options; orders saved by older versions of the app don't have them. */
+  selection?: Selection;
+  /** Whether the dish has sizes / option lists, to send only what applies. */
+  offered?: ChoicesOffered;
 };
 
 export type KitchenOrderInput = {
@@ -162,7 +198,10 @@ export type KitchenOrderInput = {
   createdAt: string;
 };
 
-/** "Enviar a cocina": only ids, quantities and customizations; the server sets prices. */
+/**
+ * "Enviar pedido": only ids, quantities and customizations; the server sets prices. With
+ * `offline` the server doesn't enforce each list's minimum: the order was already served.
+ */
 export async function sendToKitchen(tableId: number, input: KitchenOrderInput) {
   const data = await request<unknown>(`${WAITER}/tables/${tableId}/orders`, {
     method: 'POST',
@@ -173,6 +212,7 @@ export async function sendToKitchen(tableId: number, input: KitchenOrderInput) {
         quantity: item.quantity,
         excluded_ingredients: item.excluded.map((ingredient) => ingredient.id ?? ingredient.name),
         notes: item.notes.trim() || null,
+        ...choicesPayload(item.selection, item.offered ?? { variants: false, options: false }),
       })),
       label: input.label.trim() || null,
       client_ref: input.clientRef,
@@ -183,12 +223,13 @@ export async function sendToKitchen(tableId: number, input: KitchenOrderInput) {
   assertRegistered(data);
 }
 
+/** "Entregado": the dish is on the table and stops showing as to be served. */
+export async function markServed(tableId: number, itemId: number) {
+  await request(`${WAITER}/tables/${tableId}/items/${itemId}/served`, { method: 'POST', auth: true, body: {} });
+}
+
 // The restaurant doesn't take bank transfers.
-export const PAYMENT_METHODS = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'tarjeta', label: 'Tarjeta' },
-] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
+export type { PaymentMethod } from '@/domain/payments';
 export type Payment = { method: PaymentMethod; amount: number };
 
 export type ChargeInput = {

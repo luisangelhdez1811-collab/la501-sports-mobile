@@ -92,7 +92,7 @@ export function NavDrawer() {
               </Text>
               <Text style={[styles.userMeta, { color: colors.textSecondary }]}>
                 {ROLE_LABEL[user.role]}
-                {user.role === 'cliente' && <Text style={{ color: Brand.orange }}> · {user.points} puntos</Text>}
+                {user.role === 'cliente' && <Text style={{ color: colors.accent }}> · {user.points} puntos</Text>}
               </Text>
             </View>
           )}
@@ -123,7 +123,7 @@ export function NavDrawer() {
                 signOut();
               }}
               style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.7 }]}>
-              <Text style={styles.signOutText}>Cerrar sesión</Text>
+              <Text style={[styles.signOutText, { color: colors.danger }]}>Cerrar sesión</Text>
             </Pressable>
           ) : (
             <Pressable
@@ -131,7 +131,7 @@ export function NavDrawer() {
               onPress={() => go('/login')}
               style={({ pressed }) => [
                 styles.signIn,
-                { backgroundColor: pressed ? Brand.orangeDark : Brand.orange },
+                { backgroundColor: pressed ? Brand.orangeFillPressed : Brand.orangeFill },
               ]}>
               <Text style={styles.signInText}>Iniciar sesión</Text>
             </Pressable>
@@ -224,7 +224,6 @@ const styles = StyleSheet.create({
     backgroundColor: `${Brand.red}1A`,
   },
   signOutText: {
-    color: Brand.red,
     fontFamily: BrandFonts.labelBold,
     fontSize: 16,
     letterSpacing: 3,

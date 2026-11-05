@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { formatMoney } from '@/components/account/orders-list';
+import { formatMoney } from '@/domain/money';
 import { Panel, PanelState, Segmented, StatCard, StatGrid } from '@/components/admin/admin-ui';
 import { BarChart } from '@/components/admin/bar-chart';
 import { AdminScreen } from '@/components/admin/admin-screen';
-import { getDailyCut, getEarnings, getRotation, getSalesSummary, type SalesPeriod } from '@/api/admin';
+import type { SalesPeriod } from '@/api/admin';
 import { Brand, BrandFonts, Radius } from '@/constants/brand';
-import { useAdminResource } from '@/hooks/use-admin-resource';
+import { useDailyCut, useEarnings, useRotation, useSalesSummary } from '@/hooks/use-admin';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
 type Report = 'ganancias' | 'rotacion' | 'corte';
@@ -27,7 +27,7 @@ const PERIODS = [
 export default function SalesPanelScreen() {
   const [report, setReport] = useState<Report>('ganancias');
   const [period, setPeriod] = useState<SalesPeriod>('months');
-  const summary = useAdminResource('sales-summary', getSalesSummary);
+  const summary = useSalesSummary();
 
   return (
     <AdminScreen
@@ -76,7 +76,7 @@ export default function SalesPanelScreen() {
 }
 
 function EarningsReport({ period }: { period: SalesPeriod }) {
-  const earnings = useAdminResource(`earnings-${period}`, (signal) => getEarnings(period, signal));
+  const earnings = useEarnings(period);
   const points = earnings.data ?? [];
   return (
     <>
@@ -96,7 +96,7 @@ function EarningsReport({ period }: { period: SalesPeriod }) {
 
 function RotationReport({ period }: { period: SalesPeriod }) {
   const { colors } = useBrandTheme();
-  const rotation = useAdminResource(`rotation-${period}`, (signal) => getRotation(period, signal));
+  const rotation = useRotation(period);
   const items = rotation.data ?? [];
   const max = Math.max(...items.map((item) => item.quantity), 1);
   return (
@@ -131,7 +131,7 @@ function RotationReport({ period }: { period: SalesPeriod }) {
 
 function DailyCutReport() {
   const { colors } = useBrandTheme();
-  const cut = useAdminResource('daily-cut', getDailyCut);
+  const cut = useDailyCut();
   const rows = cut.data
     ? [
         { label: 'Pedidos', value: String(cut.data.orders) },

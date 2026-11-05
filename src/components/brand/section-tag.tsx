@@ -14,7 +14,7 @@ export function SectionTag({ children }: { children: string }) {
 const styles = StyleSheet.create({
   tag: {
     alignSelf: 'flex-start',
-    backgroundColor: Brand.orange,
+    backgroundColor: Brand.orangeFill,
     paddingHorizontal: 16,
     paddingVertical: 5,
     transform: [{ skewX: '-14deg' }],
