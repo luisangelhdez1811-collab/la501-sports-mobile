@@ -1,5 +1,3 @@
-import * as Print from 'expo-print';
-
 import type { Tracking } from '@/api/account';
 import type { Provider } from '@/api/info';
 import { formatMoney } from '@/domain/money';
@@ -67,8 +65,10 @@ export function ticketHtml(tracking: Tracking, provider: Provider) {
 
 /**
  * Opens the system print window (print or save as PDF). On Android it resolves as soon as
- * the window shows, even if the customer closes it.
+ * the window shows, even if the customer closes it. Loaded on the first tap: an app build
+ * without the native module only fails here (the screen shows a message), not on opening.
  */
 export async function printTicket(tracking: Tracking, provider: Provider) {
+  const Print = await import('expo-print');
   await Print.printAsync({ html: ticketHtml(tracking, provider) });
 }
