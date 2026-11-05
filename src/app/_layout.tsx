@@ -27,6 +27,21 @@ import { preloadStorePolicy } from '@/hooks/use-store-policy';
 
 SplashScreen.preventAutoHideAsync();
 
+/** Screens open to everyone: like the cart, never stacked twice. */
+const SINGLE_SCREENS = [
+  'login',
+  'registro',
+  'recuperar',
+  'configuracion',
+  'mis-datos',
+  'terminos',
+  'aviso-privacidad',
+  'novedades',
+  'quienes-somos',
+  'reservar',
+  'ubicacion',
+] as const;
+
 export default function RootLayout() {
   return (
     <BrandThemeProvider>
@@ -93,20 +108,25 @@ function RootNavigator() {
           {/* Every screen draws its own brand header. Each role only reaches its own
               sections; switching role (sign in / out) moves to the other set by itself.
               This is navigation only: the server checks the role on every admin request. */}
+          {/* dangerouslySingular: tapping the cart, a notification or a link again moves to
+              the screen already open instead of stacking a copy (one per order or table). */}
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Protected guard={isCustomer}>
               <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="carrito" />
-              <Stack.Screen name="checkout" />
-              <Stack.Screen name="pedido/[token]" />
+              <Stack.Screen name="carrito" dangerouslySingular />
+              <Stack.Screen name="checkout" dangerouslySingular />
+              <Stack.Screen name="pedido/[token]" dangerouslySingular />
             </Stack.Protected>
             <Stack.Protected guard={isAdmin}>
               <Stack.Screen name="admin" />
             </Stack.Protected>
             <Stack.Protected guard={isWaiter}>
               <Stack.Screen name="mesero" />
-              <Stack.Screen name="mesa/[id]" />
+              <Stack.Screen name="mesa/[id]" dangerouslySingular />
             </Stack.Protected>
+            {SINGLE_SCREENS.map((name) => (
+              <Stack.Screen key={name} name={name} dangerouslySingular />
+            ))}
           </Stack>
           <NavDrawer />
           {/* Sends the waiter's orders saved without a connection. */}

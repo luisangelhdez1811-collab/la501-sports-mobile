@@ -10,6 +10,7 @@ import { PasswordRules } from '@/components/brand/password-rules';
 import { OrDivider, TextLink } from '@/components/brand/text-link';
 import { TextField } from '@/components/brand/text-field';
 import { BrandFonts } from '@/constants/brand';
+import { useAfterSignIn } from '@/hooks/use-after-sign-in';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { useRegisterForm } from '@/hooks/use-session-forms';
 import { normalizePhone } from '@/utils/validation';
@@ -47,13 +48,13 @@ export default function RegisterScreen() {
     submitting,
     submit: register,
   } = useRegisterForm();
+  const afterSignIn = useAfterSignIn();
 
   const submit = async () => {
     const outcome = await register();
     // Without an automatic session, send them to sign in with the new account.
-    if (outcome === 'sign-in') router.replace('/login');
-    // A new account starts on the menu (back would land on the sign-in screen).
-    else if (outcome === 'signed-in') router.dismissTo('/');
+    if (outcome === 'sign-in') router.replace({ pathname: '/login', params: afterSignIn.params });
+    else if (outcome === 'signed-in') afterSignIn.goOn();
   };
 
   return (
@@ -156,7 +157,8 @@ export default function RegisterScreen() {
           loading={submitting}
         />
         <OrDivider />
-        <TextLink prefix="¿Ya tienes cuenta?" label="Inicia sesión" onPress={() => router.replace('/login')} />
+        <TextLink prefix="¿Ya tienes cuenta?" label="Inicia sesión" onPress={() => router.replace({ pathname: '/login', params: afterSignIn.params })}
+        />
       </FormCard>
     </BrandScreen>
   );

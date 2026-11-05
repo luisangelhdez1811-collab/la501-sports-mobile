@@ -127,7 +127,7 @@ export default function CartScreen() {
             {status !== 'authenticated' && (
               <Pressable
                 accessibilityRole="link"
-                onPress={() => router.push('/login')}
+                onPress={() => router.push({ pathname: '/login', params: { volver: 'carrito' } })}
                 style={styles.pointsNotice}>
                 <SymbolView name={{ ios: 'info.circle', android: 'info', web: 'info' }} size={18} tintColor={colors.warning} />
                 <Text style={[styles.pointsText, { color: colors.warning }]}>
