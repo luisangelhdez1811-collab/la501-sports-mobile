@@ -6,10 +6,12 @@ tags:
 ---
 - launchApp:
     clearState: true
+# El título "Arma tu pedido" es un solo texto en pantalla: Maestro compara el texto
+# completo, así que se busca con una expresión regular.
 - extendedWaitUntil:
-    visible: "Arma tu"
+    visible: ".*Arma tu.*"
     timeout: 45000
-- assertVisible: "pedido"
+- assertVisible: ".*Arma tu pedido.*"
 - assertVisible: ".*Hamburguesas.*"
 - assertVisible: "Pedir"
 - assertVisible: "Cuenta"
