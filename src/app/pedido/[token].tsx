@@ -84,8 +84,8 @@ export default function OrderTrackingScreen() {
 
           {!FINAL_STATUSES.includes(tracking.status) && (
             <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              Esta pantalla se actualiza sola. Te avisamos con una notificación cuando tu pedido se entregue al
-              repartidor y vaya en camino.
+              Esta pantalla se actualiza sola. Si tienes la app abierta, te avisamos con una notificación cuando tu
+              pedido se entregue al repartidor y vaya en camino.
             </Text>
           )}
 

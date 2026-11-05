@@ -22,8 +22,9 @@ export const WEB_URLS = {
 /**
  * Card payments (Mercado Pago). Turned off here or from the server (`payments.card_enabled`
  * in /public/info) when the real $1 test charge fails: the checkout then only offers cash.
+ * Off for the first version: Mercado Pago can't complete payments yet.
  */
-export const CARD_PAYMENTS_ENABLED = true;
+export const CARD_PAYMENTS_ENABLED = false;
 
 // Plain string parsing: React Native's URL doesn't implement `hostname` everywhere.
 export const API_HOST = API_BASE_URL.replace(/^https:\/\//, '').split(/[/:]/)[0];
