@@ -109,3 +109,20 @@ describe('certificate pinning', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('el fetch que pasa por el pinning', () => {
+  it('Metro arma la app con el fetch de React Native, no con expo/fetch', () => {
+    // expo/fetch crea su propio cliente de red y no aplicaría los pines (ni sube la foto de
+    // perfil por su uri). metro.config.js activa EXPO_PUBLIC_USE_RN_FETCH al empaquetar.
+    const anterior = process.env.EXPO_PUBLIC_USE_RN_FETCH;
+    delete process.env.EXPO_PUBLIC_USE_RN_FETCH;
+    jest.isolateModules(() => {
+      // Solo la línea de la bandera: la configuración real de Metro no corre en Jest.
+      jest.doMock('expo/metro-config', () => ({ getDefaultConfig: () => ({ transformer: {} }) }));
+      require('../../metro.config.js');
+    });
+    expect(process.env.EXPO_PUBLIC_USE_RN_FETCH).toBe('1');
+    if (anterior === undefined) delete process.env.EXPO_PUBLIC_USE_RN_FETCH;
+    else process.env.EXPO_PUBLIC_USE_RN_FETCH = anterior;
+  });
+});

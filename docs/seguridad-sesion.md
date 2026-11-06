@@ -63,6 +63,7 @@ Certificados oficiales: https://letsencrypt.org/certificates/
 - **Si el servidor cambia de dominio o de autoridad certificadora** (por ejemplo, otra que no sea Let's Encrypt, o un dominio propio), hay que actualizar `SSL_PINS` *antes* del cambio. Si no, la app no podrá conectarse.
 - **Prueba manual:** cambia un pin por uno falso, compila Release y comprueba que aparezca «No se pudo verificar que la conexión con el servidor sea segura».
 - En Expo Go (desarrollo) no hay módulo nativo y la app se conecta sin pinning. Una compilación de producción sin pinning **no se conecta**.
+- **El pinning solo cubre el `fetch` de React Native.** Desde Expo SDK 54 el `fetch` global es `expo/fetch`, que crea su propio cliente de red y no aplica los pines. Por eso `metro.config.js` pone `EXPO_PUBLIC_USE_RN_FETCH=1` (lo comprueba `test/casos-de-uso/ssl-pinning.test.ts`). No lo quites: además de saltarse el pinning, `expo/fetch` no sube archivos por su `uri` (la foto de perfil falla con «Unsupported FormDataPart implementation»).
 
 ## Pendiente en el servidor (Hostinger)
 
