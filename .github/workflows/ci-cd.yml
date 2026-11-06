@@ -5,13 +5,17 @@
 #               lint, revisión de tipos (TypeScript) y las pruebas unitarias e
 #               integración con Jest.
 #  - Versión:   en los Pull Request hacia main verifica que la versión de
-#               app.json (expo.version) sea nueva (que el tag no exista).
+#               app.json la haya preparado release-please y sea nueva para main.
 #  - Construir: con EAS Build (servidores de Expo):
 #                 release -> APK de prueba (perfil "preview")
 #                 main    -> AAB firmado para Google Play Store (perfil "production")
-#  - Publicar:  en main crea el tag vX.Y.Z y el Release con el .aab adjunto.
+#               y, si la variable PLAY_SUBMIT = true, EAS Submit lo envía a Google Play.
+#  - Publicar:  en main adjunta el .aab al Release vX.Y.Z que creó release-please.
+#  - Sincronizar: después de publicar abre el PR release → develop.
 #
-#  Requisito: secreto EXPO_TOKEN en Settings > Secrets and variables > Actions.
+#  El número de versión, el CHANGELOG y el tag los maneja release-please
+#  (.github/workflows/release-please.yml).
+#  Secretos: EXPO_TOKEN (compilar y enviar) y RELEASE_TOKEN (release-please y sincronizar).
 # =============================================================================
 name: CI/CD
 
@@ -76,7 +80,8 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # 2. En los Pull Request hacia main: la versión debe ser nueva
+  # 2. En los Pull Request hacia main: la versión la preparó release-please y es
+  #    nueva para main (evita llegar a main sin versión o repetir una ya publicada)
   # ---------------------------------------------------------------------------
   version:
     name: Versión
@@ -87,15 +92,21 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v5
 
-      - name: Comprobar que el tag no exista
+      - name: Comprobar la versión
         env:
           VERSION: ${{ needs.verificar.outputs.version }}
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
-            echo "::error file=app.json::La versión v${VERSION} ya fue publicada. Sube expo.version en app.json (rama release) antes de fusionar a main."
+          git fetch --quiet --depth=1 origin main
+          EN_MAIN="$(git show origin/main:app.json 2>/dev/null | jq -r '.expo.version // empty' || true)"
+          if [ "$VERSION" = "$EN_MAIN" ]; then
+            echo "::error file=app.json::main ya tiene la versión ${VERSION}. Fusiona primero en release el PR de release-please (\"chore: preparar versión …\")."
             exit 1
           fi
-          echo "La versión v${VERSION} es nueva. Se publicará al fusionar a main."
+          if ! git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
+            echo "::error file=app.json::No existe el tag v${VERSION}: esta versión no la preparó release-please. Fusiona su PR en release y vuelve a intentarlo."
+            exit 1
+          fi
+          echo "Versión v${VERSION} preparada por release-please (main tiene ${EN_MAIN:-ninguna})."
 
   # ---------------------------------------------------------------------------
   # 3. Lint, tipos y pruebas unitarias / de integración
@@ -193,6 +204,17 @@ jobs:
           ls -lh dist
           echo "nombre=${NOMBRE}" >> "$GITHUB_OUTPUT"
           echo "archivo=dist/${NOMBRE}.${EXT}" >> "$GITHUB_OUTPUT"
+          echo "build_id=$(jq -r '.[0].id' build.json)" >> "$GITHUB_OUTPUT"
+
+      # EAS Submit: envía el .aab a Google Play (eas.json → submit.production: prueba
+      # cerrada "alpha", en borrador). Se activa creando la variable de Actions
+      # PLAY_SUBMIT = true, cuando ya exista la app en Play Console y la llave de la
+      # cuenta de servicio de Google esté cargada en EAS (expo.dev → Credentials).
+      - name: Enviar a Google Play (EAS Submit)
+        if: github.ref == 'refs/heads/main' && vars.PLAY_SUBMIT == 'true'
+        env:
+          BUILD_ID: ${{ steps.eas.outputs.build_id }}
+        run: eas submit --platform android --profile production --non-interactive --id "$BUILD_ID"
 
       - name: Guardar archivo como artefacto
         uses: actions/upload-artifact@v4
@@ -203,7 +225,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # 5. Tag + Release estable con el .aab (solo main)
+  # 5. Adjuntar el .aab al Release que creó release-please (solo main)
   # ---------------------------------------------------------------------------
   publicar:
     name: Publicar versión estable
@@ -225,14 +247,49 @@ jobs:
           name: la501-sports-mobile-v${{ needs.verificar.outputs.version }}
           path: dist
 
-      - name: Crear tag y Release v${{ needs.verificar.outputs.version }}
+      - name: Adjuntar .aab al Release v${{ needs.verificar.outputs.version }}
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
-            echo "::error file=app.json::El tag v${VERSION} ya existe. Sube expo.version en release y vuelve a fusionar a main."
-            exit 1
+          ARCHIVO="dist/la501-sports-mobile-v${VERSION}.aab"
+          if gh release view "v${VERSION}" > /dev/null 2>&1; then
+            gh release upload "v${VERSION}" "$ARCHIVO" --clobber
+          else
+            # Respaldo por si se llegó a main sin release-please: se crea el Release aquí.
+            echo "::warning::No existe el Release v${VERSION} de release-please; se crea desde main."
+            gh release create "v${VERSION}" "$ARCHIVO" --target "${GITHUB_SHA}" \
+              --title "La 501 Sports App v${VERSION}" --generate-notes
           fi
-          gh release create "v${VERSION}" "dist/la501-sports-mobile-v${VERSION}.aab" \
-            --target "${GITHUB_SHA}" \
-            --title "La 501 Sports App v${VERSION}" \
-            --notes "Archivo .aab firmado listo para subir a Google Play Console." \
-            --generate-notes
+
+  # ---------------------------------------------------------------------------
+  # 6. Sincronizar develop con la versión publicada (solo main)
+  # ---------------------------------------------------------------------------
+  sincronizar:
+    name: Sincronizar develop
+    needs: [verificar, publicar]
+    # También corre si se omitió la compilación (sin EXPO_TOKEN); no si algo falló.
+    if: >-
+      !cancelled() && !failure() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.verificar.outputs.version }}
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+    steps:
+      - name: Abrir PR release → develop
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning title=Sincronización pendiente::Falta el secreto RELEASE_TOKEN. Abre a mano el PR release → develop."
+            exit 0
+          fi
+          REPO="${GITHUB_REPOSITORY}"
+          PENDIENTES="$(gh api "repos/$REPO/compare/develop...release" --jq '.ahead_by')"
+          if [ "${PENDIENTES:-0}" = "0" ]; then
+            echo "develop ya tiene todo lo de release."
+            exit 0
+          fi
+          if [ -n "$(gh pr list -R "$REPO" --base develop --head release --state open --json number --jq '.[0].number')" ]; then
+            echo "Ya hay un PR release → develop abierto."
+            exit 0
+          fi
+          gh pr create -R "$REPO" --base develop --head release \
+            --title "chore: sincronizar develop con la versión ${VERSION} (release → develop)" \
+            --body "Sincronización automática después de publicar v${VERSION}: trae a develop el ajuste de versión y el CHANGELOG."

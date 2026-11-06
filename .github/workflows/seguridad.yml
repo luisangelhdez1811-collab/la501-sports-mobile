@@ -1,0 +1,97 @@
+# =============================================================================
+#  Seguridad - La 501 Sports App Móvil
+#
+#  Análisis antes de compilar, en cada push o Pull Request hacia develop,
+#  release y main (y cada lunes, por vulnerabilidades nuevas):
+#  - SAST (Semgrep): reglas de JavaScript, TypeScript, React y secretos.
+#    Un hallazgo de severidad ERROR (crítico) detiene el pipeline. Todos los
+#    hallazgos se publican en la pestaña Security → Code scanning.
+#  - Dependencias (npm audit): una vulnerabilidad crítica en las dependencias
+#    de la app detiene el pipeline.
+#
+#  Los checks "SAST (Semgrep)" y "Dependencias (npm audit)" son obligatorios
+#  en las reglas de las ramas: no se fusiona a develop/main (y por lo tanto no
+#  se compila) si fallan.
+# =============================================================================
+name: Seguridad
+
+on:
+  push:
+    branches: [develop, release, main]
+  pull_request:
+    branches: [develop, release, main]
+  schedule:
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SEMGREP_VERSION: '1.182.1'
+  SEMGREP_RULES: --config p/javascript --config p/typescript --config p/react --config p/secrets
+
+jobs:
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar Semgrep ${{ env.SEMGREP_VERSION }}
+        run: pip install --quiet "semgrep==${SEMGREP_VERSION}"
+
+      - name: Analizar el código
+        run: |
+          semgrep scan $SEMGREP_RULES --metrics=off \
+            --sarif-output=semgrep.sarif --json-output=semgrep.json
+          CRITICOS="$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' semgrep.json)"
+          TOTAL="$(jq '.results | length' semgrep.json)"
+          echo "### SAST (Semgrep)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Hallazgos: ${TOTAL} · críticos (ERROR): ${CRITICOS}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CRITICOS" -gt 0 ]; then
+            jq -r '.results[] | select(.extra.severity == "ERROR") | "::error file=\(.path),line=\(.start.line)::\(.check_id): \(.extra.message)"' semgrep.json
+            exit 1
+          fi
+
+      - name: Publicar resultados en Security → Code scanning
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  dependencias:
+    name: Dependencias (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Revisar vulnerabilidades conocidas
+        run: |
+          # Dependencias de la app (sin las de desarrollo). Las altas que quedan
+          # vienen de las herramientas de compilación de Expo / React Native y
+          # se corrigen al actualizar el SDK; se reportan sin detener.
+          npm audit --omit=dev --json > audit.json || true
+          jq -r '.metadata.vulnerabilities | "Críticas: \(.critical) · altas: \(.high) · moderadas: \(.moderate)"' audit.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          npm audit --omit=dev --audit-level=critical

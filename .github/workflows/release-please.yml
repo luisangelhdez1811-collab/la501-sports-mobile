@@ -1,0 +1,77 @@
+# =============================================================================
+#  release-please (Google) - versiones automáticas en la rama release
+#
+#  Cada vez que llega algo a release (PR develop → release), release-please lee
+#  los commits con formato feat:/fix: y mantiene abierto un PR hacia release con:
+#    - la versión siguiente en package.json y app.json (expo.version),
+#    - la sección nueva de CHANGELOG.md.
+#  Al fusionar ese PR, release-please crea el tag vX.Y.Z y el Release en GitHub,
+#  y este workflow abre el PR release → main para la aprobación final.
+#
+#  Configuración: release-please-config.json y .release-please-manifest.json
+#  Documentación: https://github.com/googleapis/release-please
+#
+#  Requiere el secreto RELEASE_TOKEN: lo creado con el token por defecto de
+#  Actions no dispara las pruebas (lo indica la documentación de la acción).
+# =============================================================================
+name: release-please
+
+on:
+  push:
+    branches: [release]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Preparar versión
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+    steps:
+      - name: Revisar RELEASE_TOKEN
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error title=Falta RELEASE_TOKEN::Crea un token fine-grained con permisos Contents y Pull requests (lectura y escritura) sobre este repositorio y guárdalo como secreto RELEASE_TOKEN."
+            exit 1
+          fi
+
+      - name: release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          target-branch: release
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Abrir PR release → main
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+          NOTAS: ${{ steps.release.outputs.body }}
+        run: |
+          if [ -n "$(gh pr list -R "$GITHUB_REPOSITORY" --base main --head release --state open --json number --jq '.[0].number')" ]; then
+            echo "Ya hay un PR release → main abierto."
+            exit 0
+          fi
+          {
+            echo "## Versión $TAG"
+            echo
+            echo "Preparada por release-please. Al aprobar y fusionar este PR, el pipeline:"
+            echo "1. Compila con EAS el .aab firmado (perfil production) y lo adjunta al Release $TAG."
+            echo "2. Si está activada la variable PLAY_SUBMIT, lo envía a Google Play con EAS Submit (prueba cerrada, borrador)."
+            echo "3. Abre el PR release → develop para sincronizar."
+            echo
+            echo "Antes de aprobar: instalar el APK de prueba (Actions → Artifacts) y revisar los flujos principales."
+            echo
+            printf '%s\n' "$NOTAS"
+          } > /tmp/cuerpo.md
+          gh pr create -R "$GITHUB_REPOSITORY" --base main --head release --title "release: $TAG" --body-file /tmp/cuerpo.md

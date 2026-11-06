@@ -1,0 +1,15 @@
+# Pruebas de caja negra (E2E) con Maestro: usan la app como un usuario, tocando lo que
+# se ve en pantalla, sin acceso al código. Ejecutar con la app instalada:
+#   maestro test .maestro                       (todas)
+#   maestro test .maestro --exclude-tags=mesero (sin cuenta de mesero)
+# Los flujos de mesero necesitan -e MESERO_EMAIL=... -e MESERO_PASSWORD=...
+# Ninguna prueba crea pedidos ni cobros reales.
+flows:
+  - "*.yaml"
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - 01-abrir-app
+    - 02-ver-platillo
+    - 03-iniciar-sesion-validacion
+    - 04-mesero-mesas
