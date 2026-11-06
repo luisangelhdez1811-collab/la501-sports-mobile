@@ -4,20 +4,22 @@ name: CP-03 Validación del inicio de sesión
 tags:
   - cliente
 ---
+# El emulador de GitHub Actions es lento y variable: los tiempos de espera tienen margen
+# para que una prueba no falle solo porque la app tardó más en abrir.
 - launchApp
 - extendedWaitUntil:
     visible: "Cuenta"
-    timeout: 45000
+    timeout: 90000
 - tapOn: "Cuenta"
 # El botón queda debajo de la lista de beneficios: en pantallas chicas hay que desplazarse.
 - scrollUntilVisible:
     element: "Iniciar sesión"
     direction: DOWN
-    timeout: 10000
+    timeout: 30000
 - tapOn: "Iniciar sesión"
 - extendedWaitUntil:
     visible: "Entrar"
-    timeout: 10000
+    timeout: 30000
 - tapOn: "Entrar"
 - assertVisible: "Escribe un correo electrónico válido."
 - tapOn: "tu@correo.com"
