@@ -12,7 +12,7 @@ import {
   type Account,
 } from '@/api/account';
 import { errorMessage } from '@/api/client';
-import { shrinkForAvatar } from '@/data/avatar-image';
+import { AvatarTooSmallError, shrinkForAvatar } from '@/data/avatar-image';
 import { useAuth } from '@/hooks/use-auth';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useCooldown } from '@/hooks/use-cooldown';
@@ -117,13 +117,17 @@ export function useAvatar() {
       let photo;
       try {
         photo = await shrinkForAvatar(asset);
-      } catch {
-        return setMessage({ type: 'error', text: 'No se pudo preparar esa foto. Elige otra.' });
+      } catch (err) {
+        const text =
+          err instanceof AvatarTooSmallError
+            ? 'Esa foto es muy pequeña para tu perfil. Elige otra.'
+            : 'No se pudo preparar esa foto. Elige otra.';
+        return setMessage({ type: 'error', text });
       }
       const avatar = await uploadAvatar(photo);
       if (avatar) {
         setUser({ ...user, avatar });
-        setMessage({ type: 'success', text: 'Tu foto se actualizó; también se ve en la página web.' });
+        setMessage({ type: 'success', text: 'Tu foto de perfil se actualizó.' });
       } else {
         setMessage({ type: 'error', text: 'El servidor no confirmó la foto. Intenta de nuevo.' });
       }
