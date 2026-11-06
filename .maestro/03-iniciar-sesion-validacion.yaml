@@ -1,0 +1,28 @@
+# CP-03: el inicio de sesión valida los datos antes de enviarlos.
+appId: com.la501.sports
+name: CP-03 Validación del inicio de sesión
+tags:
+  - cliente
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Cuenta"
+    timeout: 45000
+- tapOn: "Cuenta"
+# El botón queda debajo de la lista de beneficios: en pantallas chicas hay que desplazarse.
+- scrollUntilVisible:
+    element: "Iniciar sesión"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Iniciar sesión"
+- extendedWaitUntil:
+    visible: "Entrar"
+    timeout: 10000
+- tapOn: "Entrar"
+- assertVisible: "Escribe un correo electrónico válido."
+- tapOn: "tu@correo.com"
+- inputText: "cliente@la501.test"
+- hideKeyboard
+- tapOn: "Entrar"
+- assertVisible: "Escribe tu contraseña."
+- takeScreenshot: CP-03-validacion

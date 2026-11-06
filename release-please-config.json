@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-component-in-tag": false,
+  "pull-request-title-pattern": "chore${scope}: preparar versión ${version}",
+  "pull-request-header": "Versión preparada automáticamente por release-please. Al fusionar este PR en `release` se crea el tag y el Release, y se abre el PR `release → main`.",
+  "changelog-sections": [
+    { "type": "feat", "section": "Añadido" },
+    { "type": "fix", "section": "Corregido" },
+    { "type": "perf", "section": "Rendimiento" },
+    { "type": "refactor", "section": "Cambios internos" },
+    { "type": "test", "section": "Pruebas" },
+    { "type": "docs", "section": "Documentación", "hidden": true },
+    { "type": "style", "section": "Estilo", "hidden": true },
+    { "type": "chore", "section": "Mantenimiento", "hidden": true },
+    { "type": "ci", "section": "CI/CD", "hidden": true }
+  ],
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "initial-version": "1.0.0",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        { "type": "json", "path": "app.json", "jsonpath": "$.expo.version" }
+      ]
+    }
+  }
+}

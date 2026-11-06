@@ -1,0 +1,18 @@
+# CP-01: la app abre y muestra el menú para pedir (sin iniciar sesión).
+appId: com.la501.sports
+name: CP-01 Abrir la app y ver el menú
+tags:
+  - cliente
+---
+- launchApp:
+    clearState: true
+# El título "Arma tu pedido" es un solo texto en pantalla: Maestro compara el texto
+# completo, así que se busca con una expresión regular.
+- extendedWaitUntil:
+    visible: ".*Arma tu.*"
+    timeout: 45000
+- assertVisible: ".*Arma tu pedido.*"
+- assertVisible: ".*Hamburguesas.*"
+- assertVisible: "Pedir"
+- assertVisible: "Cuenta"
+- takeScreenshot: CP-01-menu

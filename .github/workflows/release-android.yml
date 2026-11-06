@@ -1,0 +1,154 @@
+# =============================================================================
+#  Release Android - La 501 Sports App Móvil
+#
+#  En cada Pull Request hacia release o main (o a mano desde Actions):
+#  1. APK Release ofuscado: compila con R8 (minifyEnabled + shrinkResources,
+#     configurado en app.json → expo-build-properties) y guarda el mapping.txt
+#     para leer los errores de Release.
+#  2. Anti-descompilación: descompila el APK con JADX y publica el reporte
+#     (scripts/analizar-apk.mjs). Falla si el código queda legible o hay secretos.
+#  3. Pruebas de caja negra (E2E): instala el APK en un emulador Android y
+#     ejecuta los flujos de Maestro (.maestro/) como lo haría un usuario.
+#     Los flujos del mesero usan los secretos MAESTRO_MESERO_EMAIL y
+#     MAESTRO_MESERO_PASSWORD; si no existen, se omiten.
+# =============================================================================
+name: Release Android
+
+on:
+  pull_request:
+    branches: [release, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  JADX_VERSION: '1.5.3'
+
+jobs:
+  apk:
+    name: APK Release ofuscado (R8 + JADX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar proyecto Android (Expo prebuild)
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Verificar R8 en build.gradle
+        run: |
+          grep -n "minifyEnabled\|shrinkResources" android/app/build.gradle
+          grep -q "android.enableMinifyInReleaseBuilds=true" android/gradle.properties
+          grep -q "android.enableShrinkResourcesInReleaseBuilds=true" android/gradle.properties
+
+      - name: Compilar APK Release
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+
+      - name: Guardar APK y mapping de R8
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/mapping/release/mapping.txt
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Descompilar con JADX y generar reporte
+        run: |
+          curl -sSfL -o jadx.zip "https://github.com/skylot/jadx/releases/download/v${JADX_VERSION}/jadx-${JADX_VERSION}.zip"
+          unzip -q jadx.zip -d jadx
+          JADX="$PWD/jadx/bin/jadx" node scripts/analizar-apk.mjs \
+            android/app/build/outputs/apk/release/app-release.apk reporte-descompilacion.md \
+            android/app/build/outputs/mapping/release/mapping.txt
+          cat reporte-descompilacion.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar reporte de descompilación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-descompilacion
+          path: reporte-descompilacion.md
+          if-no-files-found: ignore
+
+  e2e:
+    name: Pruebas E2E (Maestro, Release)
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MAESTRO_MESERO_EMAIL: ${{ secrets.MAESTRO_MESERO_EMAIL }}
+      MAESTRO_MESERO_PASSWORD: ${{ secrets.MAESTRO_MESERO_PASSWORD }}
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Descargar APK
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-release
+          path: build
+
+      - name: Habilitar aceleración del emulador (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Ejecutar flujos en el emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          # El emulator-runner ejecuta cada línea por separado: todo va en una sola.
+          script: >-
+            adb install -r build/apk/release/app-release.apk &&
+            maestro test .maestro $([ -n "$MAESTRO_MESERO_EMAIL" ] || echo --exclude-tags=mesero)
+            -e MESERO_EMAIL="$MAESTRO_MESERO_EMAIL" -e MESERO_PASSWORD="$MAESTRO_MESERO_PASSWORD"
+            --format junit --output maestro-reporte.xml --debug-output maestro-debug
+
+      - name: Guardar resultados de Maestro
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-e2e
+          path: |
+            maestro-reporte.xml
+            maestro-debug
+          if-no-files-found: ignore
