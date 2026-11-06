@@ -21,6 +21,26 @@ function mapsUrl(query: string, directions: boolean) {
     : `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
+/**
+ * Android: a geo: link opens the maps app the person uses (never the browser). Without
+ * one installed, the Google Maps web link is the fallback.
+ */
+function openPlace(query: string) {
+  const web = mapsUrl(query, false);
+  if (Platform.OS !== 'android') return Linking.openURL(web).catch(() => {});
+  return Linking.openURL(`geo:0,0?q=${encodeURIComponent(query)}`).catch(() => Linking.openURL(web).catch(() => {}));
+}
+
+// Same as the website: Google only draws its embedded map inside an iframe. Loaded as the
+// page itself, it redirects to a URL that says "must be used in an iframe".
+const MAP_PAGE_ORIGIN = 'https://maps.google.com/';
+
+function mapPage(embedUrl: string) {
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html,body{margin:0;height:100%;background:#111}iframe{border:0;width:100%;height:100%}</style></head>
+<body><iframe src="${embedUrl}" loading="eager" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></body></html>`;
+}
+
 function ActionButton({
   icon,
   label,
@@ -58,15 +78,19 @@ export default function LocationScreen() {
 
   const { address, mapQuery: query } = info;
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
+  // embedUrl only carries the encoded query: nothing in it can close the iframe's quotes.
+  const page = mapPage(embedUrl);
   // "Plaza de la Revolución Mexicana #16, Col. Centro, …" → street as the title, the rest below.
   const [street, ...rest] = address.split(',').map((part) => part.trim());
-  const open = (directions: boolean) => Linking.openURL(mapsUrl(query, directions)).catch(() => {});
+  const open = (directions: boolean) =>
+    directions ? Linking.openURL(mapsUrl(query, true)).catch(() => {}) : openPlace(query);
 
-  // The map page stays inside the card; any link in it ("Ver mapa más grande") opens the
-  // maps app instead of navigating away.
+  // The map and its redirects stay inside the iframe. A link that would replace the whole
+  // card ("Abrir en Maps", "Cómo llegar" inside the map) opens the maps app instead.
   const onNavigate: NonNullable<WebViewProps['onShouldStartLoadWithRequest']> = (request) => {
-    if (request.url === embedUrl || request.isTopFrame === false) return true;
-    if (request.url.startsWith('https://')) Linking.openURL(request.url).catch(() => {});
+    if (request.isTopFrame === false) return true;
+    if (request.url === MAP_PAGE_ORIGIN || request.url === 'about:blank') return true;
+    if (request.url.startsWith('https://')) openPlace(query);
     return false;
   };
 
@@ -91,9 +115,9 @@ export default function LocationScreen() {
             </View>
           ) : (
             <WebView
-              source={{ uri: embedUrl }}
+              source={{ html: page, baseUrl: MAP_PAGE_ORIGIN }}
               style={styles.map}
-              originWhitelist={['https://*']}
+              originWhitelist={['https://*', 'about:*']}
               onShouldStartLoadWithRequest={onNavigate}
               setSupportMultipleWindows={false}
               allowsLinkPreview={false}
