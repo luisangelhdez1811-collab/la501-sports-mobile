@@ -60,7 +60,7 @@ export function AvatarEditor() {
           )}
         </View>
       </View>
-      <Text style={[styles.hint, { color: colors.textSecondary }]}>JPG, PNG o WebP de máximo 2 MB.</Text>
+      <Text style={[styles.hint, { color: colors.textSecondary }]}>Elige cualquier foto: la app la ajusta al tamaño de perfil antes de subirla.</Text>
       {!!message && <FormMessage type={message.type}>{message.text}</FormMessage>}
     </View>
   );

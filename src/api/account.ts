@@ -362,7 +362,6 @@ export async function exportMyData(signal?: AbortSignal): Promise<Json> {
 }
 
 const AVATAR_TYPES = /^image\/(jpeg|png|webp)$/;
-export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const AVATAR_UPLOAD_TIMEOUT_MS = 60_000;
 
 /** Changes the profile photo (the same one as on the website). Returns the new URL. */

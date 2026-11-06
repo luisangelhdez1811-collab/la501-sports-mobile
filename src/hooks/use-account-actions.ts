@@ -2,7 +2,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 
 import {
-  AVATAR_MAX_BYTES,
   deleteAccount,
   deleteAvatar,
   getAccount,
@@ -13,6 +12,7 @@ import {
   type Account,
 } from '@/api/account';
 import { errorMessage } from '@/api/client';
+import { shrinkForAvatar } from '@/data/avatar-image';
 import { useAuth } from '@/hooks/use-auth';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useCooldown } from '@/hooks/use-cooldown';
@@ -110,12 +110,17 @@ export function useAvatar() {
     });
     const asset = result.canceled ? null : result.assets[0];
     if (!asset) return;
-    if (asset.fileSize && asset.fileSize > AVATAR_MAX_BYTES) {
-      return setMessage({ type: 'error', text: 'La foto pesa más de 2 MB. Elige otra o recórtala más.' });
-    }
     setBusy('upload');
     try {
-      const avatar = await uploadAvatar(asset);
+      // A phone photo is several MB even cropped: it's sent at 512 px, which is all an
+      // avatar needs, so it never goes over the server's 2 MB limit.
+      let photo;
+      try {
+        photo = await shrinkForAvatar(asset);
+      } catch {
+        return setMessage({ type: 'error', text: 'No se pudo preparar esa foto. Elige otra.' });
+      }
+      const avatar = await uploadAvatar(photo);
       if (avatar) {
         setUser({ ...user, avatar });
         setMessage({ type: 'success', text: 'Tu foto se actualizó; también se ve en la página web.' });
