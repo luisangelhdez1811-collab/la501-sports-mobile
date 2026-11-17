@@ -38,7 +38,8 @@ export function useCheckout() {
   const policy = useStorePolicy();
   const legal = useLegalUpdate();
   const [name, setName] = useState(user?.name ?? '');
-  const [phone, setPhone] = useState('');
+  // A profile saved by an older version has no phone: start empty then.
+  const [phone, setPhone] = useState(user?.phone ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [address, setAddress] = useState('');
   const [payment, setPayment] = useState<PaymentMethod | null>(null);

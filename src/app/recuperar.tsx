@@ -13,7 +13,7 @@ import { CodeField, ResendCode } from '@/components/verification/code-input';
 import { BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { usePasswordRecovery } from '@/hooks/use-password-recovery';
-import { normalizePhone } from '@/utils/validation';
+import { EMAIL_CODE_LENGTH, normalizePhone } from '@/utils/validation';
 
 const MODES = [
   { value: 'email', label: 'Correo' },
@@ -64,8 +64,8 @@ export default function RecoverScreen() {
         : 'Escribe el celular de tu cuenta y te enviaremos un código por SMS para crear una contraseña nueva.',
     // Same wording whether or not the account exists, so it can't be used to probe accounts.
     code: byPhone
-      ? `Si ${where} tiene una cuenta, te llegará un SMS con un código de 6 dígitos.`
-      : `Si ${where} tiene una cuenta, recibirás en tu correo un código de 6 dígitos.`,
+      ? `Si ${where} tiene una cuenta, te llegará un SMS con un código.`
+      : `Si ${where} tiene una cuenta, recibirás en tu correo un código de ${EMAIL_CODE_LENGTH} dígitos.`,
     password: 'Código verificado. Crea una contraseña segura para tu cuenta.',
     done: 'Tu contraseña se actualizó. Por seguridad se cerró la sesión en todos tus dispositivos; inicia sesión de nuevo.',
   }[step];

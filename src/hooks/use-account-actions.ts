@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useCooldown } from '@/hooks/use-cooldown';
 import { notOnServer, type Message } from '@/hooks/use-my-data';
-import { isCompleteCode, isPhone, isStrongPassword } from '@/utils/validation';
+import { incompleteCodeMessage, isCompleteCode, isPhone, isStrongPassword } from '@/utils/validation';
 
 /** ViewModels of the account screens: profile, phone, photo, password and deleting it. */
 
@@ -33,6 +33,7 @@ type PhoneStep = 'idle' | 'phone' | 'code';
  * code is confirmed, so nobody can claim someone else's.
  */
 export function usePhoneChange(current: string | null, onChanged: () => void) {
+  const { user, setUser } = useAuth();
   const cooldown = useCooldown();
   const [step, setStep] = useState<PhoneStep>('idle');
   const [phone, setPhone] = useState('');
@@ -68,9 +69,11 @@ export function usePhoneChange(current: string | null, onChanged: () => void) {
   };
 
   const confirm = () => {
-    if (!isCompleteCode(code)) return setMessage({ type: 'error', text: 'Escribe el código de 6 dígitos que te enviamos.' });
+    if (!isCompleteCode(code, 'sms')) return setMessage({ type: 'error', text: incompleteCodeMessage('sms') });
     return run(async () => {
       await updatePhone(phone, code);
+      // The order and reservation forms fill in the new number from now on.
+      if (user) setUser({ ...user, phone });
       setStep('idle');
       setPhone('');
       setCode('');
