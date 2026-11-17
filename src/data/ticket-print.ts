@@ -1,5 +1,6 @@
 import type { Tracking } from '@/api/account';
 import type { Provider } from '@/api/info';
+import { mapsQrCaption, qrSvg } from '@/domain/maps-qr';
 import { formatMoney } from '@/domain/money';
 import { TICKET_FEE_NOTE, ticketDate, ticketFolio } from '@/domain/order-ticket';
 
@@ -30,6 +31,11 @@ export function ticketHtml(tracking: Tracking, provider: Provider) {
   const sold = [provider.name, provider.owner, provider.address, `Tel. ${provider.phone}`, provider.rfc ? `RFC ${provider.rfc}` : '']
     .filter(Boolean)
     .join(' · ');
+  // The modules were checked when reading the order (only "0" and "1"): safe inside the HTML.
+  const qr =
+    tracking.isDelivery && tracking.maps
+      ? `<div class="qr">${qrSvg(tracking.maps.modules, 180)}<div>${escape(mapsQrCaption(tracking.maps.fromAddress))}</div></div>`
+      : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
@@ -45,6 +51,7 @@ export function ticketHtml(tracking: Tracking, provider: Provider) {
   .extra { color: #555; font-size: 12px; }
   .total { border-top: 2px dashed #111; margin-top: 8px; font-size: 18px; font-weight: bold; }
   .note, .provider { color: #555; font-size: 11px; text-align: center; margin-top: 12px; }
+  .qr { text-align: center; font-size: 12px; margin-top: 12px; }
 </style></head><body>
   <h1>TICKET DE PEDIDO</h1>
   <div class="sub">¡Gracias por elegir La 501 Sports Restaurant!</div>
@@ -58,6 +65,7 @@ export function ticketHtml(tracking: Tracking, provider: Provider) {
   </table>
   <table class="items">${lines}</table>
   <table class="total"><tr><td>TOTAL DEL PEDIDO</td><td class="value">${escape(formatMoney(tracking.total))}</td></tr></table>
+  ${qr}
   <div class="note">${escape(TICKET_FEE_NOTE)}</div>
   <div class="provider">Vende: ${escape(sold)}</div>
 </body></html>`;
