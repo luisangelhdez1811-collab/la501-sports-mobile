@@ -4,7 +4,7 @@ import { getMyOrders, requestOrderOtp, verifyOrderOtp, type OrderSummary } from 
 import { errorMessage } from '@/api/client';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { useCooldown } from '@/hooks/use-cooldown';
-import { isCompleteCode, isPhone } from '@/utils/validation';
+import { incompleteCodeMessage, isCompleteCode, isPhone } from '@/utils/validation';
 
 /** The signed-in customer's orders. */
 export function useMyOrders(enabled: boolean) {
@@ -47,7 +47,7 @@ export function useGuestOrderLookup() {
   };
 
   const verify = () => {
-    if (!isCompleteCode(code)) return setError('Escribe el código de 6 dígitos que te enviamos.');
+    if (!isCompleteCode(code, 'sms')) return setError(incompleteCodeMessage('sms'));
     return run(async () => {
       setOrders(await verifyOrderOtp(phone, code));
       setStep('results');

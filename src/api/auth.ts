@@ -10,6 +10,8 @@ export type User = {
   id: number | null;
   name: string;
   email: string;
+  /** 10 digits, or '' if the account has none. Fills the contact forms. */
+  phone: string;
   role: Role;
   points: number;
   avatar: string | null;
@@ -51,6 +53,7 @@ export function toUser(raw: unknown): User | null {
     id: asId(obj.id),
     name: asString(pick(obj, 'name', 'nombre'), email),
     email,
+    phone: normalizePhone(asString(pick(obj, 'telefono', 'phone'))),
     role: toRole(obj),
     points: asNumber(pick(obj, 'points', 'puntos')),
     avatar: asHttpsUrl(obj.avatar),

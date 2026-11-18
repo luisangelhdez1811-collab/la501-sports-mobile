@@ -26,9 +26,28 @@ export function isStrongPassword(value: string) {
   return PASSWORD_RULES.every((rule) => rule.test(value));
 }
 
-/** Verification codes sent by SMS or email are 6 digits. */
-export const CODE_LENGTH = 6;
+/** Where a verification code was sent. */
+export type CodeChannel = 'email' | 'sms';
 
-export function isCompleteCode(code: string) {
-  return code.length === CODE_LENGTH;
+/** The email code is made by the server (8 digits, like the website's). */
+export const EMAIL_CODE_LENGTH = 8;
+/**
+ * SMS codes come from Twilio Verify, whose length is set in the Twilio console: 6 by
+ * default, 8 once it's changed to match the email code. Both are accepted so the app
+ * keeps working before and after that change.
+ */
+export const SMS_CODE_LENGTHS = [6, 8] as const;
+/** The longest code: what the code field lets you type. */
+export const CODE_MAX_LENGTH = 8;
+
+export function isCompleteCode(code: string, channel: CodeChannel) {
+  if (channel === 'email') return code.length === EMAIL_CODE_LENGTH;
+  return SMS_CODE_LENGTHS.some((length) => code.length === length);
+}
+
+/** The message when the code is missing digits. */
+export function incompleteCodeMessage(channel: CodeChannel) {
+  return channel === 'email'
+    ? `Escribe el código de ${EMAIL_CODE_LENGTH} dígitos que te enviamos a tu correo.`
+    : 'Escribe completo el código que te enviamos por SMS.';
 }
