@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { forgotPassword, resetPassword, verifyResetCode, type RecoveryTarget } from '@/api/auth';
 import { ApiError, errorMessage } from '@/api/client';
 import { useCooldown } from '@/hooks/use-cooldown';
-import { isCompleteCode, isEmail, isPhone, isStrongPassword } from '@/utils/validation';
+import { incompleteCodeMessage, isCompleteCode, isEmail, isPhone, isStrongPassword } from '@/utils/validation';
 
 // Same order as the website: send the code → verify it → choose the new password.
 export type RecoveryStep = 'contact' | 'code' | 'password' | 'done';
@@ -65,7 +65,8 @@ export function usePasswordRecovery() {
 
   const verify = () => {
     if (!target) return;
-    if (!isCompleteCode(code)) return setError('Escribe el código de 6 dígitos que te enviamos.');
+    const channel = 'email' in target ? 'email' : 'sms';
+    if (!isCompleteCode(code, channel)) return setError(incompleteCodeMessage(channel));
     run(async () => {
       setResetToken(await verifyResetCode(target, code));
       setStep('password');

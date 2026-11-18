@@ -42,7 +42,8 @@ function toIsoDate(date: Date) {
 export function useReservationForm(hours: WeekHours) {
   const { user } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
-  const [phone, setPhone] = useState('');
+  // A profile saved by an older version has no phone: start empty then.
+  const [phone, setPhone] = useState(user?.phone ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [date, setDateState] = useState<Date | null>(null);
   const [time, setTimeState] = useState<string | null>(null);

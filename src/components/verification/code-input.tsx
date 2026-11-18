@@ -5,20 +5,20 @@ import { TextLink } from '@/components/brand/text-link';
 import { BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 import { formatWait } from '@/utils/format-wait';
-import { CODE_LENGTH } from '@/utils/validation';
+import { CODE_MAX_LENGTH } from '@/utils/validation';
 
 /** Codes are digits only: anything else typed or pasted is dropped. */
 export function CodeField({ value, onChange }: { value: string; onChange: (code: string) => void }) {
   return (
     <TextField
       label="Código de verificación"
-      placeholder="123456"
+      placeholder="Solo números"
       value={value}
-      onChangeText={(v) => onChange(v.replace(/\D/g, '').slice(0, CODE_LENGTH))}
+      onChangeText={(v) => onChange(v.replace(/\D/g, '').slice(0, CODE_MAX_LENGTH))}
       keyboardType="number-pad"
       autoComplete="one-time-code"
       textContentType="oneTimeCode"
-      maxLength={CODE_LENGTH}
+      maxLength={CODE_MAX_LENGTH}
       hint="Llega en unos segundos. Es válido por 10 minutos."
     />
   );

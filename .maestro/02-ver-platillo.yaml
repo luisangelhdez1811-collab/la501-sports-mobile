@@ -5,23 +5,25 @@ name: CP-02 Ver un platillo y agregarlo al pedido
 tags:
   - cliente
 ---
+# El emulador de GitHub Actions es lento y variable: los tiempos de espera tienen margen
+# para que una prueba no falle solo porque la app tardó más en abrir.
 - launchApp
 - extendedWaitUntil:
     visible: ".*Hamburguesas.*"
-    timeout: 45000
+    timeout: 90000
 - tapOn: ".*Hamburguesas.*"
 - extendedWaitUntil:
     visible: ".*Agregar"
-    timeout: 20000
+    timeout: 30000
 - tapOn:
     text: ".*Agregar"
     index: 0
 - extendedWaitUntil:
     visible: "Descripción"
-    timeout: 15000
+    timeout: 30000
 - assertVisible: "Agregar al pedido"
 - tapOn: "Agregar al pedido"
 - extendedWaitUntil:
     visible: "Ver tu orden.*"
-    timeout: 10000
+    timeout: 30000
 - takeScreenshot: CP-02-orden
