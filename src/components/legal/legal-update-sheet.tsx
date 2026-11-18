@@ -13,6 +13,9 @@ import { useStorePolicy } from '@/hooks/use-store-policy';
 
 const open = (url: string) => WebBrowser.openBrowserAsync(url, { dismissButtonStyle: 'close', showTitle: true });
 
+/** The summary the website shows when it asks to accept the new versions. */
+const CHANGES = [...PRIVACY_NOTICE.changes, ...TERMS.changes];
+
 /**
  * New Aviso de Privacidad or Terms: a screen that can't be skipped until the customer
  * accepts them (M-22). The full texts open in the browser, as published on the website.
@@ -42,6 +45,10 @@ export function LegalUpdateSheet() {
               {'\n'}
               Términos y Condiciones: {TERMS.updated}
               {policy.termsVersion ? ` (versión ${policy.termsVersion})` : ''}
+            </Text>
+            <Text style={[styles.text, { color: colors.text }]}>
+              <Text style={styles.strong}>Qué cambió</Text>
+              {CHANGES.map((change) => `\n• ${change}`).join('')}
             </Text>
             <View style={styles.links}>
               <TextLink label="Leer el Aviso de Privacidad" onPress={() => open(policy.privacyUrl)} />
@@ -80,6 +87,9 @@ const styles = StyleSheet.create({
     fontFamily: BrandFonts.body,
     fontSize: 15,
     lineHeight: 22,
+  },
+  strong: {
+    fontFamily: BrandFonts.bodyBold,
   },
   links: {
     gap: 10,

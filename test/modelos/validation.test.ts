@@ -1,6 +1,15 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { isEmail, isPhone, isStrongPassword, normalizePhone, PASSWORD_RULES } from '@/utils/validation';
+import {
+  CODE_MAX_LENGTH,
+  incompleteCodeMessage,
+  isCompleteCode,
+  isEmail,
+  isPhone,
+  isStrongPassword,
+  normalizePhone,
+  PASSWORD_RULES,
+} from '@/utils/validation';
 
 describe('validación de formularios', () => {
   it('acepta correos válidos y rechaza los incompletos', () => {
@@ -30,5 +39,21 @@ describe('validación de formularios', () => {
   it('marca exactamente las reglas que no se cumplen', () => {
     const fallidas = PASSWORD_RULES.filter((regla) => !regla.test('abc')).map((regla) => regla.label);
     expect(fallidas).toEqual(['8 caracteres', 'Mayúscula', 'Número', 'Símbolo (!@#$%^&*)']);
+  });
+});
+
+describe('códigos de verificación', () => {
+  it('el del correo es de 8 dígitos, como el que genera el servidor', () => {
+    expect(CODE_MAX_LENGTH).toBe(8);
+    expect(isCompleteCode('12345678', 'email')).toBe(true);
+    expect(isCompleteCode('123456', 'email')).toBe(false);
+    expect(incompleteCodeMessage('email')).toContain('8 dígitos');
+  });
+
+  it('el del SMS puede ser de 6 o de 8, según lo configurado en Twilio', () => {
+    expect(isCompleteCode('123456', 'sms')).toBe(true);
+    expect(isCompleteCode('12345678', 'sms')).toBe(true);
+    expect(isCompleteCode('1234567', 'sms')).toBe(false);
+    expect(isCompleteCode('12345', 'sms')).toBe(false);
   });
 });

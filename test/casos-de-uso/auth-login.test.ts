@@ -52,7 +52,7 @@ describe('inicio de sesión', () => {
 
     const cuerpo = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
     expect(cuerpo.email).toBe('ana@la501.mx');
-    expect(usuario).toEqual({ id: 7, name: 'Ana', email: 'ana@la501.mx', role: 'mesero', points: 40, avatar: null });
+    expect(usuario).toEqual({ id: 7, name: 'Ana', email: 'ana@la501.mx', phone: '', role: 'mesero', points: 40, avatar: null });
     expect(await getToken()).toBe('abc123');
     expect(mockAlmacen.get('la501_token')).toBe('abc123');
   });
@@ -84,5 +84,14 @@ describe('roles de usuario', () => {
     expect(toUser({ email: 'b@x.mx', is_staff: 1 })?.role).toBe('mesero');
     expect(toUser({ email: 'c@x.mx', role: 'desconocido' })?.role).toBe('cliente');
     expect(toUser({ nombre: 'sin correo' })).toBeNull();
+  });
+});
+
+describe('teléfono del usuario', () => {
+  it('lo toma del servidor para llenar solo los datos de contacto del pedido', () => {
+    const { toUser } = cargar();
+    expect(toUser({ email: 'a@x.mx', telefono: '7711234567' })?.phone).toBe('7711234567');
+    expect(toUser({ email: 'a@x.mx', phone: '771 123 4567' })?.phone).toBe('7711234567');
+    expect(toUser({ email: 'a@x.mx', telefono: null })?.phone).toBe('');
   });
 });

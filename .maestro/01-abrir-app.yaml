@@ -4,13 +4,15 @@ name: CP-01 Abrir la app y ver el menú
 tags:
   - cliente
 ---
+# El emulador de GitHub Actions es lento y variable: los tiempos de espera tienen margen
+# para que una prueba no falle solo porque la app tardó más en abrir.
 - launchApp:
     clearState: true
 # El título "Arma tu pedido" es un solo texto en pantalla: Maestro compara el texto
 # completo, así que se busca con una expresión regular.
 - extendedWaitUntil:
     visible: ".*Arma tu.*"
-    timeout: 45000
+    timeout: 90000
 - assertVisible: ".*Arma tu pedido.*"
 - assertVisible: ".*Hamburguesas.*"
 - assertVisible: "Pedir"

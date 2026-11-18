@@ -13,6 +13,8 @@ import {
 import { Brand, BrandFonts } from '@/constants/brand';
 import { useBrandTheme } from '@/hooks/use-brand-theme';
 
+import { MapsQr } from './maps-qr';
+
 const PAYMENT: Record<'efectivo' | 'tarjeta', string> = { efectivo: 'Efectivo', tarjeta: 'Tarjeta' };
 
 /**
@@ -83,6 +85,7 @@ export function OrderTicket({ tracking }: { tracking: Tracking }) {
         <Text style={[styles.totalLabel, { color: colors.text }]}>Total del pedido</Text>
         <Text style={[styles.total, { color: colors.accent }]}>{formatMoney(tracking.total)}</Text>
       </View>
+      {tracking.isDelivery && tracking.maps && <MapsQr maps={tracking.maps} />}
       <Text style={[styles.note, { color: colors.textSecondary }]}>{TICKET_FEE_NOTE}</Text>
     </View>
   );
