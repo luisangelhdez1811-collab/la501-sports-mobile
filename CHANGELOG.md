@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.0](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/compare/v1.0.0...v1.1.0) (2026-11-18)
+
+
+### Añadido
+
+* **legal:** Aviso y Términos de la web, versión 2026-11-17 ([#22](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/issues/22)) ([9222798](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/commit/9222798889719a06185a7600e34cd1c554878b84))
+* **pedido:** QR de Maps en el ticket, igual que en la web ([#21](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/issues/21)) ([5daddbf](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/commit/5daddbf01b6af93fa019d2ce21fcf8eb58b80408))
+
+
+### Corregido
+
+* **cuenta:** código de 8 dígitos por correo y teléfono que se llena solo ([#20](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/issues/20)) ([e0fa820](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/commit/e0fa820bea4ca44dd027f64174ad5491d5b8e6ec))
+
+
+### Pruebas
+
+* **e2e:** dar margen a los tiempos de espera de Maestro ([#18](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/issues/18)) ([c59ac7f](https://github.com/luisangelhdez1811-collab/la501-sports-mobile/commit/c59ac7f7987fa64125dc0dba0996f4e992399d58))
+
 ## 1.0.0 (2026-11-06)
 
 
