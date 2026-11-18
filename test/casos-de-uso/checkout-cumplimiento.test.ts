@@ -177,6 +177,47 @@ describe('lo que se manda y se lee del servidor', () => {
     );
   });
 
+  it('el seguimiento lee los datos del cliente y el QR de Maps, como el ticket de la web', async () => {
+    const modulos = Array.from({ length: 21 }, (_, y) => (y % 2 ? '10'.repeat(10) + '1' : '01'.repeat(10) + '0'));
+    const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=Av.+Ju%C3%A1rez+12%2C+Huejutla';
+    fetchMock.mockImplementation(async () =>
+      respuesta(200, {
+        data: {
+          status: 'paid',
+          es_a_domicilio: true,
+          customer_name: 'Ana',
+          customer_phone: '7711234567',
+          customer_address: 'Av. Juárez 12, Col. Centro',
+          maps_url: mapsUrl,
+          maps_from_address: true,
+          maps_qr: modulos,
+          items: [],
+          total: 185,
+        },
+      }),
+    );
+    const { trackOrder } = require('@/api/account') as typeof import('@/api/account');
+
+    const pedido = await trackOrder('abc123');
+
+    expect(pedido.customer).toEqual({ name: 'Ana', phone: '7711234567', address: 'Av. Juárez 12, Col. Centro' });
+    expect(pedido.maps).toEqual({ url: mapsUrl, fromAddress: true, modules: modulos });
+  });
+
+  it('sin QR válido, o con un enlace que no es de Google Maps, el ticket no muestra QR', async () => {
+    const modulos = Array.from({ length: 21 }, () => '0'.repeat(21));
+    const servidor = (extra: Record<string, unknown>) =>
+      fetchMock.mockImplementation(async () => respuesta(200, { data: { status: 'paid', items: [], ...extra } }));
+    const { trackOrder } = require('@/api/account') as typeof import('@/api/account');
+
+    servidor({});
+    expect((await trackOrder('abc123')).maps).toBeNull();
+    servidor({ maps_url: 'https://otro-sitio.test/maps', maps_qr: modulos });
+    expect((await trackOrder('abc123')).maps).toBeNull();
+    servidor({ maps_url: 'https://www.google.com/maps?q=21.1,-98.4', maps_qr: ['0101'] });
+    expect((await trackOrder('abc123')).maps).toBeNull();
+  });
+
   it('cancelar lee la respuesta corta del servidor: estado, devolución y mensaje', async () => {
     fetchMock.mockImplementation(async () =>
       respuesta(200, { success: true, status: 'cancelled', refund_status: 'manual', message: 'Te devolvemos el dinero.' }),

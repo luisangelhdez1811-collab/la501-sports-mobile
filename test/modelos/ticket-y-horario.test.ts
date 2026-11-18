@@ -56,6 +56,7 @@ describe('ticket del pedido', () => {
       createdAt: new Date(2026, 10, 5, 8, 26),
       lines: [{ name: '<script>x</script>Burrito', quantity: 1, subtotal: 160, options: '', excluded: [], notes: '' }],
       customer: { name: 'Angel', phone: '7710000000', address: 'Mirador' },
+      maps: null,
     };
 
     const html = ticketHtml(pedido, DEFAULT_POLICY.provider);

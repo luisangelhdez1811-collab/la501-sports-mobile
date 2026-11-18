@@ -1,3 +1,4 @@
+import { toQrModules } from '@/domain/maps-qr';
 import { optionsSummary, type TicketOption } from '@/domain/order-ticket';
 
 import { ApiError, request } from './client';
@@ -255,6 +256,18 @@ export type TicketLine = {
 /** Who ordered and where it goes; '' when the server doesn't send it. */
 export type TicketCustomer = { name: string; phone: string; address: string };
 
+/**
+ * The Maps QR under the total, as on the website: the customer's GPS or, without it, a search
+ * for the written address. Only home-delivery orders bring it.
+ */
+export type TicketMaps = {
+  url: string;
+  /** The link searches the written address: it isn't an exact spot. */
+  fromAddress: boolean;
+  /** Rows of "0" and "1" (dark), without the quiet zone. */
+  modules: string[];
+};
+
 export type Tracking = {
   status: OrderStatus;
   /** The server's text for the status ("Confirmado", never "Pagado"); '' if it doesn't send one. */
@@ -270,6 +283,8 @@ export type Tracking = {
   createdAt: Date | null;
   lines: TicketLine[];
   customer: TicketCustomer;
+  /** null: pick-up and eat-in orders, or older servers that don't send it. */
+  maps: TicketMaps | null;
 };
 
 const toOption = (raw: unknown): TicketOption | null => {
@@ -292,6 +307,14 @@ function toTicketLine(raw: unknown): TicketLine | null {
     excluded: asArray(obj.excluded_ingredients).map((item) => asString(item)).filter(Boolean),
     notes: asString(obj.notes),
   };
+}
+
+/** Only Google Maps links are opened from the ticket. */
+function toTicketMaps(url: unknown, fromAddress: unknown, modules: unknown): TicketMaps | null {
+  const link = asHttpsUrl(url);
+  const qr = toQrModules(modules);
+  if (!link || !link.startsWith('https://www.google.com/maps') || !qr) return null;
+  return { url: link, fromAddress: fromAddress === true, modules: qr };
 }
 
 function toTracking(raw: unknown): Tracking {
@@ -319,6 +342,7 @@ function toTracking(raw: unknown): Tracking {
       phone: asString(field('customer_phone')),
       address: asString(field('customer_address')),
     },
+    maps: toTicketMaps(field('maps_url'), field('maps_from_address'), field('maps_qr')),
   };
 }
 
