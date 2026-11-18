@@ -1,3 +1,4 @@
+import { openBrowserAsync } from 'expo-web-browser';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { BrandScreen } from '@/components/brand/brand-screen';
@@ -18,13 +19,23 @@ function Block({ block }: { block: LegalBlock }) {
       );
     case 'h3':
       return <Text style={[styles.h3, { color: colors.text }]}>{block.text}</Text>;
-    case 'p':
+    case 'p': {
+      const { link } = block;
       return (
         <Text style={[styles.p, { color: colors.textSecondary }]}>
           {!!block.strong && <Text style={[styles.strong, { color: colors.text }]}>{block.strong}</Text>}
           {block.text}
+          {!!link && (
+            <Text
+              accessibilityRole="link"
+              style={[styles.strong, { color: colors.accent }]}
+              onPress={() => openBrowserAsync(link.url, { dismissButtonStyle: 'close', showTitle: true })}>
+              {link.label}
+            </Text>
+          )}
         </Text>
       );
+    }
     case 'list':
       return (
         <View style={styles.list}>
