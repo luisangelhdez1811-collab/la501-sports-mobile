@@ -1,0 +1,103 @@
+# =============================================================================
+#  Rendimiento Android - La 501 Sports App Móvil (Actividad 6, GPDS)
+#
+#  Compila el APK Release (igual que release-android.yml), lo instala en un
+#  emulador Android 14 y mide con herramientas nativas de Android:
+#    - arranque en frío (am start -W, 5 veces),
+#    - memoria PSS (dumpsys meminfo),
+#    - CPU del proceso durante un recorrido del menú (/proc/<pid>/stat),
+#    - fluidez: cuadros lentos y percentiles (dumpsys gfxinfo).
+#  El resumen queda en la pestaña Summary de la ejecución, como anotación y como
+#  artefacto. No bloquea ninguna rama: es una medición, no una compuerta.
+# =============================================================================
+name: Rendimiento Android
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - '.github/workflows/rendimiento-android.yml'
+      - 'scripts/medir-rendimiento.sh'
+      - '.maestro/rendimiento/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  medir:
+    name: Rendimiento en emulador (arranque, memoria, CPU y cuadros)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar proyecto Android (Expo prebuild)
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Compilar APK Release
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+
+      - name: Habilitar aceleración del emulador (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Instalar Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Medir en el emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          # Con animaciones, como las ve el usuario: se mide la fluidez real del recorrido.
+          disable-animations: false
+          script: bash scripts/medir-rendimiento.sh android/app/build/outputs/apk/release/app-release.apk rendimiento
+
+      - name: Publicar resumen
+        if: always()
+        run: |
+          if [ -f rendimiento/resumen.md ]; then
+            cat rendimiento/resumen.md >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Rendimiento en emulador::$(tr '\n' ';' < rendimiento/resumen.env)"
+          else
+            echo "::warning title=Rendimiento en emulador::No se generó el resumen; revisa el paso Medir en el emulador."
+          fi
+
+      - name: Guardar mediciones
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendimiento-emulador
+          path: rendimiento
+          retention-days: 30
+          if-no-files-found: ignore

@@ -1,0 +1,29 @@
+# RD-01: recorrido del menú para medir CPU y fluidez (scripts/medir-rendimiento.sh).
+# No usa launchApp: recorre la app que ya está abierta para medir el mismo proceso.
+# Está en una subcarpeta para que no corra con las pruebas E2E (config.yaml solo toma *.yaml).
+# No agrega nada al pedido ni envía datos.
+appId: com.la501.sports
+name: RD-01 Recorrido del menú (rendimiento)
+tags:
+  - rendimiento
+---
+- extendedWaitUntil:
+    visible: ".*Hamburguesas.*"
+    timeout: 90000
+- scroll
+- scroll
+- scrollUntilVisible:
+    element: ".*Hamburguesas.*"
+    direction: UP
+    timeout: 20000
+- tapOn: ".*Hamburguesas.*"
+- extendedWaitUntil:
+    visible: ".*Agregar"
+    timeout: 30000
+- scroll
+- scroll
+- scroll
+- back
+- extendedWaitUntil:
+    visible: ".*Hamburguesas.*"
+    timeout: 30000
